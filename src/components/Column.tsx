@@ -22,21 +22,63 @@ export default function Column({
   onMovePing,
 }: ColumnProps) {
   const [isDraggedOver, setIsDraggedOver] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragCounter((prev) => prev + 1);
+    setIsDraggedOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragCounter((prev) => {
+      const newCount = prev - 1;
+      if (newCount === 0) {
+        setIsDraggedOver(false);
+      }
+      return newCount;
+    });
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggedOver(false);
+    setDragCounter(0);
+    
+    try {
+      const data = e.dataTransfer.getData("application/json");
+      if (data) {
+        const { id } = JSON.parse(data);
+        onMovePing(id, columnName);
+        window.dispatchEvent(new Event("ping-drag-end"));
+      }
+    } catch (err) {
+      console.error("Failed to parse drag data:", err);
+    }
+  };
 
   return (
     <motion.div
-      className={`flex flex-col h-full bg-base-200 rounded-xl p-4 min-w-[320px] max-w-[380px] flex-shrink-0 transition-all duration-200 ${
-        isDraggedOver ? "ring-2 ring-primary ring-opacity-50 bg-primary/5" : ""
+      className={`flex flex-col h-full rounded-xl p-4 w-[360px] flex-shrink-0 transition-all duration-200 ${
+        isDraggedOver 
+          ? "bg-primary/20 ring-3 ring-primary ring-opacity-100" 
+          : "bg-base-200"
       }`}
-      onDragEnter={() => setIsDraggedOver(true)}
-      onDragLeave={() => setIsDraggedOver(false)}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={() => setIsDraggedOver(false)}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       layout
       animate={{
-        scale: isDraggedOver ? 1.01 : 1,
+        scale: isDraggedOver ? 1.02 : 1,
         boxShadow: isDraggedOver 
-          ? "0 0 20px rgba(var(--color-primary), 0.3)" 
+          ? "0 0 30px rgba(var(--color-primary), 0.5), inset 0 0 20px rgba(var(--color-primary), 0.15)" 
           : "none",
       }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -70,7 +112,7 @@ export default function Column({
       </div>
 
       {/* Scrollable Cards Container */}
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+      <div className="flex-1 overflow-y-auto space-y-3 -mx-4 px-4 -my-4 py-4 [overflow-clip-margin:20px]">
         <AnimatePresence mode="popLayout">
           {pings.length === 0 ? (
             <motion.div
@@ -86,10 +128,8 @@ export default function Column({
             pings.map((ping) => (
               <motion.div
                 key={ping.id}
-                layout
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
               >
                 <PingCard

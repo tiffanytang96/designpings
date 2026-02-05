@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import TopBar from "@/components/TopBar";
 import Column from "@/components/Column";
 import AddPingModal from "@/components/AddPingModal";
@@ -10,41 +10,69 @@ interface Ping {
   title: string;
   column: "Inbox" | "In Progress" | "Done";
   tags?: string[];
-  priority?: "low" | "medium" | "high";
+  priority?: "low" | "medium" | "high" | "urgent";
   createdAt: string;
 }
 
+const DEFAULT_PINGS: Ping[] = [
+  {
+    id: "1",
+    title: "Review design system documentation",
+    column: "Inbox",
+    tags: ["docs", "design-system"],
+    priority: "high",
+    createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 mins ago
+  },
+  {
+    id: "2",
+    title: "Update color palette for dark mode",
+    column: "In Progress",
+    tags: ["design"],
+    priority: "medium",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
+  },
+  {
+    id: "3",
+    title: "Create prototype for new dashboard",
+    column: "Done",
+    tags: ["prototype", "figma"],
+    priority: "low",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+  },
+];
+
 export default function Home() {
   // State management
-  const [pings, setPings] = useState<Ping[]>([
-    {
-      id: "1",
-      title: "Review design system documentation",
-      column: "Inbox",
-      tags: ["docs", "design-system"],
-      priority: "high",
-      createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 mins ago
-    },
-    {
-      id: "2",
-      title: "Update color palette for dark mode",
-      column: "In Progress",
-      tags: ["design"],
-      priority: "medium",
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-    },
-    {
-      id: "3",
-      title: "Create prototype for new dashboard",
-      column: "Done",
-      tags: ["prototype", "figma"],
-      priority: "low",
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-    },
-  ]);
+  const [pings, setPings] = useState<Ping[]>(DEFAULT_PINGS);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPing, setEditingPing] = useState<Ping | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("design-pings");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setPings(parsed);
+      }
+    } catch (error) {
+      console.error("Failed to load pings from localStorage:", error);
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Save to localStorage whenever pings change
+  useEffect(() => {
+    if (isHydrated) {
+      try {
+        localStorage.setItem("design-pings", JSON.stringify(pings));
+      } catch (error) {
+        console.error("Failed to save pings to localStorage:", error);
+      }
+    }
+  }, [pings, isHydrated]);
 
   // CRUD Functions
   const handleAddPing = () => {
@@ -109,7 +137,7 @@ export default function Home() {
     filteredPings.filter((p) => p.column === column);
 
   return (
-    <main className="min-h-screen bg-base-200 flex flex-col">
+    <main className="h-screen bg-base-200 flex flex-col">
       {/* Top Bar */}
       <TopBar
         onAddPing={() => handleAddPing()}

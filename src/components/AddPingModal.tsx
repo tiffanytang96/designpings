@@ -8,7 +8,7 @@ interface Ping {
   title: string;
   column: "Inbox" | "In Progress" | "Done";
   tags?: string[];
-  priority?: "low" | "medium" | "high";
+  priority?: "low" | "medium" | "high" | "urgent";
   createdAt: string;
 }
 
@@ -227,7 +227,7 @@ export default function AddPingModal({
                   checked={priority === "medium"}
                   onChange={() => setPriority("medium")}
                 />
-                <span className="text-sm text-base-content">Med</span>
+                <span className="text-sm text-base-content">Medium</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -238,6 +238,16 @@ export default function AddPingModal({
                   onChange={() => setPriority("high")}
                 />
                 <span className="text-sm text-base-content">High</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="priority"
+                  className="radio radio-sm radio-primary"
+                  checked={priority === "urgent"}
+                  onChange={() => setPriority("urgent")}
+                />
+                <span className="text-sm text-base-content">Urgent</span>
               </label>
             </div>
           </div>

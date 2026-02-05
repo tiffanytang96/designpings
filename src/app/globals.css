@@ -28,6 +28,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Prevent Chrome's link/globe drag cursor during card drags */
+body.dragging,
+body.dragging *,
+html.dragging,
+html.dragging * {
+  cursor: grabbing !important;
+}
+
 /* Add faint border to all dropdown menus */
 .dropdown-content {
   border: 1px solid rgba(0, 0, 0, 0.1);
