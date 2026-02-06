@@ -10,6 +10,7 @@ interface Ping {
   tags?: string[];
   priority?: "low" | "medium" | "high" | "urgent";
   createdAt: string;
+  dueDate?: string; // YYYY-MM-DD
 }
 
 interface AddPingModalProps {
@@ -30,6 +31,7 @@ export default function AddPingModal({
   const [priority, setPriority] = useState<Ping["priority"] | "">("");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [dueDate, setDueDate] = useState("");
 
   // Populate form when editing
   useEffect(() => {
@@ -38,12 +40,14 @@ export default function AddPingModal({
       setColumn(editingPing.column);
       setPriority(editingPing.priority || "");
       setTags(editingPing.tags || []);
+      setDueDate(editingPing.dueDate ? editingPing.dueDate.split("T")[0] : "");
     } else {
       // Reset form for new ping
       setTitle("");
       setColumn("Inbox");
       setPriority("");
       setTags([]);
+      setDueDate("");
     }
   }, [editingPing, isOpen]);
 
@@ -75,6 +79,7 @@ export default function AddPingModal({
       column,
       tags: tags.length > 0 ? tags : undefined,
       priority: priority || undefined,
+      dueDate: dueDate || undefined,
     };
 
     onSave(pingData);
@@ -87,26 +92,33 @@ export default function AddPingModal({
     setPriority("");
     setTags([]);
     setTagInput("");
+    setDueDate("");
     onClose();
   };
 
+  const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    handleClose();
+  };
+
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={false}>
       {isOpen && (
-        <div className="modal modal-open">
+        <div className="modal modal-open !transition-none !animate-none">
           <motion.div
-            className="modal-backdrop"
+            className="modal-backdrop !transition-none !animate-none"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={handleClose}
+            onMouseDown={handleBackdropMouseDown}
           />
           <motion.div
-            className="modal-box max-w-md"
+            className="modal-box max-w-md !transition-none !animate-none"
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <h3 className="font-bold text-lg mb-4 text-base-content">
               {editingPing ? "Edit Ping" : "Add New Ping"}
@@ -250,6 +262,19 @@ export default function AddPingModal({
                 <span className="text-sm text-base-content">Urgent</span>
               </label>
             </div>
+          </div>
+
+          {/* Due date */}
+          <div className="form-control">
+            <label className="label">
+              <span className="text-sm font-semibold text-base-content">Due Date</span>
+            </label>
+            <input
+              type="date"
+              className="input input-bordered w-full"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
           </div>
 
           {/* Tags input */}

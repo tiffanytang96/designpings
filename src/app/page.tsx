@@ -12,6 +12,7 @@ interface Ping {
   tags?: string[];
   priority?: "low" | "medium" | "high" | "urgent";
   createdAt: string;
+  dueDate?: string; // YYYY-MM-DD
 }
 
 const DEFAULT_PINGS: Ping[] = [

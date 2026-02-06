@@ -91,7 +91,11 @@ export default function Column({
         </div>
         <button
           className="btn btn-ghost btn-sm btn-circle text-base-content"
-          onClick={() => onAddPing(columnName)}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onAddPing(columnName);
+          }}
           aria-label={`Add ping to ${columnName}`}
         >
           <svg

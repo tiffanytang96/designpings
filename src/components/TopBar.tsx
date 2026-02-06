@@ -84,7 +84,14 @@ export default function TopBar({
 
         {/* Right: Add Ping Button + Settings */}
         <div className="flex items-center gap-3 flex-shrink-0">
-          <button className="btn btn-primary" onClick={onAddPing}>
+          <button
+            className="btn btn-primary"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAddPing();
+            }}
+          >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"

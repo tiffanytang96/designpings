@@ -11,6 +11,7 @@ interface Ping {
   tags?: string[];
   priority?: "low" | "medium" | "high" | "urgent";
   createdAt: string;
+  dueDate?: string; // YYYY-MM-DD
 }
 
 interface PingCardProps {
@@ -62,6 +63,12 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
+  };
+
+  const formatDueDate = (dateStr: string) => {
+    const date = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   };
 
   // Check if title is truncated
@@ -136,6 +143,7 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
     e.dataTransfer!.effectAllowed = "move";
     e.dataTransfer!.dropEffect = "move";
     e.dataTransfer!.setData("application/json", JSON.stringify({ id: ping.id }));
+    e.dataTransfer!.setData("text/plain", ping.id);
     document.body.classList.add("dragging");
     document.documentElement.classList.add("dragging");
     if (cardRef.current) {
@@ -222,7 +230,7 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
     >
       <motion.div
         ref={cardRef}
-        className="card bg-base-100 shadow-sm cursor-grab active:cursor-grabbing flex flex-row"
+        className="card bg-base-100 shadow-sm cursor-grab active:cursor-grabbing flex flex-row overflow-visible"
         onClick={() => onEdit(ping)}
         whileHover={{
           scale: 1.02,
@@ -252,15 +260,15 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
         {!ping.priority && <div className="w-1 rounded-r-md flex-shrink-0 bg-base-300" />}
 
       <div className="card-body p-4 gap-3 flex-1">
-        {/* Header: Drag handle + Priority + Delete */}
+        {/* Header: Title + Delete */}
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 flex-1">
-            {/* Priority badge */}
-            {ping.priority && (
-              <span className={`badge badge-sm px-1.5 ${priorityBadgeColors[ping.priority]}`}>
-                {ping.priority.charAt(0).toUpperCase() + ping.priority.slice(1)}
-              </span>
-            )}
+          <div className={`${isTruncated ? "tooltip tooltip-top" : ""} w-full`} data-tip={isTruncated ? ping.title : ""}>
+            <h3 
+              ref={titleRef}
+              className="text-base font-semibold line-clamp-2 text-base-content min-h-12 w-full overflow-hidden"
+            >
+              {ping.title}
+            </h3>
           </div>
 
           {/* Delete button */}
@@ -298,16 +306,6 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
             }}
             onCancel={() => setShowDeleteConfirm(false)}
           />
-        </div>
-
-        {/* Title */}
-        <div className={`${isTruncated ? "tooltip tooltip-top" : ""} w-full`} data-tip={isTruncated ? ping.title : ""}>
-          <h3 
-            ref={titleRef}
-            className="text-base font-semibold line-clamp-2 text-base-content min-h-12 w-full overflow-hidden"
-          >
-            {ping.title}
-          </h3>
         </div>
 
         {/* Tags */}
@@ -355,26 +353,53 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
           </>
         )}
 
-        {/* Footer: Timestamp + Move dropdown */}
+        {/* Footer: Priority + Timestamp */}
         <div className="flex items-center justify-between gap-2 pt-1">
-          <span className="text-xs text-base-content/60 inline-flex items-center gap-1">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              className="w-3.5 h-3.5"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 6v6l4 2M12 3a9 9 0 100 18 9 9 0 000-18z"
-              />
-            </svg>
-            {formatTimestamp(ping.createdAt)}
-          </span>
+          <div className="flex items-center gap-2">
+            {ping.priority && (
+              <span className={`badge badge-sm px-1.5 ${priorityBadgeColors[ping.priority]}`}>
+                {ping.priority.charAt(0).toUpperCase() + ping.priority.slice(1)}
+              </span>
+            )}
+            <span className="text-xs text-base-content/60 inline-flex items-center gap-1">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                className="w-3.5 h-3.5"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 6v6l4 2M12 3a9 9 0 100 18 9 9 0 000-18z"
+                />
+              </svg>
+              {formatTimestamp(ping.createdAt)}
+            </span>
+            {ping.dueDate && (
+              <span className="text-xs text-base-content/60 inline-flex items-center gap-1">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  className="w-3.5 h-3.5"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8 7V3m8 4V3M4 11h16M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
+                  />
+                </svg>
+                {formatDueDate(ping.dueDate)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       </motion.div>
