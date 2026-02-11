@@ -26,11 +26,13 @@ interface PingCardProps {
   ping: Ping;
   onEdit: (ping: Ping) => void;
   onDelete: (id: string) => void;
-  onMove: (id: string, newColumn: Ping["column"]) => void;
 }
 
-export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardProps) {
+export default function PingCard({ ping, onEdit, onDelete }: PingCardProps) {
+  // Store selectors
   const tagsById = useBoardStore((state) => state.tags);
+
+  // Derived data
   const tags = useMemo(
     () => (ping.tagIds || []).map((id) => tagsById[id]).filter(Boolean),
     [ping.tagIds, tagsById]
@@ -47,6 +49,7 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
   const tagsContainerRef = useRef<HTMLDivElement>(null);
   const tagsMeasureRef = useRef<HTMLDivElement>(null);
 
+  // Visual styles
   const priorityBadgeColors = {
     low: "bg-green-500/10 text-green-700 font-medium border-green-400/60 rounded-md",
     medium: "bg-amber-500/10 text-amber-700 font-medium border-amber-400/60 rounded-md",
@@ -74,8 +77,14 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
 
   // Compute how many tags fit on a single row and reserve space for the overflow pill.
   useLayoutEffect(() => {
+    const commitVisibleTagCount = (nextCount: number) => {
+      requestAnimationFrame(() => {
+        setVisibleTagCount(nextCount);
+      });
+    };
+
     if (!tagsContainerRef.current || !tagsMeasureRef.current || tags.length === 0) {
-      setVisibleTagCount(tags.length);
+      commitVisibleTagCount(tags.length);
       return;
     }
 
@@ -103,7 +112,7 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
     }
 
     if (countAll >= tags.length) {
-      setVisibleTagCount(tags.length);
+      commitVisibleTagCount(tags.length);
       return;
     }
 
@@ -118,7 +127,7 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
       countWithOverflow += 1;
     }
 
-    setVisibleTagCount(Math.max(0, Math.min(countWithOverflow, tags.length)));
+    commitVisibleTagCount(Math.max(0, Math.min(countWithOverflow, tags.length)));
   }, [tags, tagsContainerWidth]);
 
   // Keep tag fitting correct on resize.
@@ -132,6 +141,7 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
     return () => observer.disconnect();
   }, []);
 
+  // Card drag handlers
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     setIsDragging(true);
     e.dataTransfer!.effectAllowed = "move";
@@ -226,6 +236,7 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
   }, [isDragging]);
 
   return (
+    // Card layout
     <div
       draggable
       onDragStart={handleDragStart}

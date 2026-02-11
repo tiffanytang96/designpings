@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ChecklistPanel from "./add-ping/ChecklistPanel";
 import LeftFormFields from "./add-ping/LeftFormFields";
@@ -34,49 +34,37 @@ export default function AddPingModal({
   editingPing,
   defaultColumn = "Inbox",
 }: AddPingModalProps) {
+  // Store selectors
   const tagsById = useBoardStore((state) => state.tags);
   const tagOrder = useBoardStore((state) => state.tagOrder);
   const createOrReuseTag = useBoardStore((state) => state.createOrReuseTag);
-  const [title, setTitle] = useState("");
-  const [column, setColumn] = useState<Ping["column"]>("Inbox");
-  const [priority, setPriority] = useState<PingPriority | "">("low");
+
+  // Form state
+  const [title, setTitle] = useState(() => editingPing?.title ?? "");
+  const [column, setColumn] = useState<Ping["column"]>(
+    () => editingPing?.column ?? defaultColumn
+  );
+  const [priority, setPriority] = useState<PingPriority | "">(
+    () => editingPing?.priority || "low"
+  );
   const [tagInput, setTagInput] = useState("");
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [dueDate, setDueDate] = useState("");
-  const [description, setDescription] = useState("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
+    () => editingPing?.tagIds || []
+  );
+  const [dueDate, setDueDate] = useState(
+    () => editingPing?.dueDate?.split("T")[0] || ""
+  );
+  const [description, setDescription] = useState(() => editingPing?.description || "");
   const [checklistInput, setChecklistInput] = useState("");
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(
+    () => editingPing?.checklist || []
+  );
   const [tagError, setTagError] = useState<string | undefined>();
   const [priorityError, setPriorityError] = useState<string | undefined>();
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
 
-  // Populate form when editing
-  useEffect(() => {
-    if (editingPing) {
-      setTitle(editingPing.title);
-      setColumn(editingPing.column);
-      setPriority(editingPing.priority || "");
-      setSelectedTagIds(editingPing.tagIds || []);
-      setDueDate(editingPing.dueDate ? editingPing.dueDate.split("T")[0] : "");
-      setDescription(editingPing.description || "");
-      setChecklist(editingPing.checklist || []);
-    } else {
-      // Reset form for new ping
-      setTitle("");
-      setColumn(defaultColumn);
-      setPriority("low");
-      setSelectedTagIds([]);
-      setDueDate("");
-      setDescription("");
-      setChecklist([]);
-    }
-    setTagInput("");
-    setTagError(undefined);
-    setPriorityError(undefined);
-    setActiveSuggestionIndex(-1);
-  }, [editingPing, isOpen]);
-
+  // Derived tag lists
   const allTags: Tag[] = tagOrder.map((id) => tagsById[id]).filter(Boolean);
   const tagOrderIndex = useMemo(() => {
     const map = new Map<string, number>();
@@ -111,6 +99,7 @@ export default function AddPingModal({
     ? sortByTagOrder(suggestions)
     : sortByTagOrder(allTags.filter((tag) => !selectedTagIds.includes(tag.id)));
 
+  // Tag handlers
   const addTagLabel = (label: string) => {
     const trimmed = label.replace(/,+$/, "").trim();
     if (!trimmed) return;
@@ -143,6 +132,7 @@ export default function AddPingModal({
     setSelectedTagIds(selectedTagIds.filter((id) => id !== tagId));
   };
 
+  // Keyboard handlers
   const handleTagKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
@@ -244,6 +234,7 @@ export default function AddPingModal({
   };
 
   return (
+    // Modal layout
     <AnimatePresence initial={false}>
       {isOpen && (
         <div className="modal modal-open !transition-none !animate-none">

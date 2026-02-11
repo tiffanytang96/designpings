@@ -8,6 +8,7 @@ interface StickyToolbarProps {
 
 export default function StickyToolbar({ onAddNote }: StickyToolbarProps) {
   return (
+    // Sticky board header
     <div className="flex items-center justify-between">
       <div>
         <h3 className="text-sm font-semibold text-base-content">Sticky Notes</h3>

@@ -35,16 +35,14 @@ export default function TopBar({
   onOpenTagEditor,
   onClearDone,
 }: TopBarProps) {
+  // Menu state
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number } | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const isClient = typeof window !== "undefined";
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  // Position menu near trigger
   useLayoutEffect(() => {
     if (!menuOpen || !menuButtonRef.current) return;
     const rect = menuButtonRef.current.getBoundingClientRect();
@@ -54,6 +52,7 @@ export default function TopBar({
     });
   }, [menuOpen]);
 
+  // Keep menu within viewport
   useLayoutEffect(() => {
     if (!menuOpen || !menuButtonRef.current || !menuRef.current) return;
     const rect = menuButtonRef.current.getBoundingClientRect();
@@ -73,6 +72,7 @@ export default function TopBar({
     });
   }, [menuOpen, menuStyle]);
 
+  // Close menu on outside click / Escape
   useEffect(() => {
     if (!menuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -93,15 +93,22 @@ export default function TopBar({
   }, [menuOpen]);
 
   return (
-    <div className="bg-base-100 border-b border-base-300 px-6 py-4">
-      <div className="flex items-center justify-between gap-6 max-w-screen-2xl mx-auto">
+    // Top navigation layout
+    <div className="bg-base-100 border-b border-base-300 pl-8 pr-3 py-4">
+      <div className="flex items-center justify-between gap-6 mx-auto">
         {/* Left: App Name/Logo */}
         <div className="flex items-center flex-shrink-0">
-          <div className="h-10 w-[200px] overflow-hidden rounded-lg">
-            <img
-              src="/designpings.png"
-              alt="Design Pings"
-              className="h-full w-full object-cover object-left"
+          <div className="relative inline-flex items-start">
+            <h1 className="text-[1.5rem] leading-none font-extrabold tracking-tight text-base-content">
+              Design Pings
+            </h1>
+            <span
+              className="absolute -right-5 top-0 h-3 w-3 rounded-full"
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 30%, #fde68a 0%, #f59e0b 65%, #d97706 100%)",
+              }}
+              aria-hidden="true"
             />
           </div>
         </div>
@@ -164,7 +171,7 @@ export default function TopBar({
             >
               <EllipsisVerticalIcon className="w-5 h-5" />
             </button>
-            {mounted &&
+            {isClient &&
               createPortal(
                 <AnimatePresence>
                   {menuOpen && menuStyle && (

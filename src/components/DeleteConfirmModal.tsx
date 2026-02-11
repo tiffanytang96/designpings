@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 interface DeleteConfirmModalProps {
@@ -29,15 +28,10 @@ export default function DeleteConfirmModal({
   confirmClassName = "btn btn-error btn-sm",
   cancelClassName = "btn btn-neutral btn-sm",
 }: DeleteConfirmModalProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
+  if (typeof window === "undefined") return null;
 
   return createPortal(
+    // Confirmation modal portal
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

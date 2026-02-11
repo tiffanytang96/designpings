@@ -3,7 +3,12 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
-import { CheckCircleIcon, MinusCircleIcon } from "@heroicons/react/24/outline";
+import {
+  CheckCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MinusCircleIcon,
+} from "@heroicons/react/24/outline";
 import TopBar from "@/components/TopBar";
 import Column from "@/components/Column";
 import AddPingModal from "@/components/AddPingModal";
@@ -53,6 +58,27 @@ const DEFAULT_PINGS: LegacyPing[] = [
   },
 ];
 
+const getInitialUiPrefs = () => {
+  if (typeof window === "undefined") {
+    return { focusMode: false, isTopBarHidden: false };
+  }
+  try {
+    const stored = localStorage.getItem("pingboard:ui");
+    if (!stored) return { focusMode: false, isTopBarHidden: false };
+    const parsed = JSON.parse(stored) as {
+      focusMode?: boolean;
+      isTopBarHidden?: boolean;
+    };
+    return {
+      focusMode: typeof parsed.focusMode === "boolean" ? parsed.focusMode : false,
+      isTopBarHidden:
+        typeof parsed.isTopBarHidden === "boolean" ? parsed.isTopBarHidden : false,
+    };
+  } catch {
+    return { focusMode: false, isTopBarHidden: false };
+  }
+};
+
 export default function Home() {
   const pings = useBoardStore((state) => state.pings);
   const tagsById = useBoardStore((state) => state.tags);
@@ -66,22 +92,27 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPing, setEditingPing] = useState<Ping | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [focusMode, setFocusMode] = useState(false);
-  const [isTopBarHidden, setIsTopBarHidden] = useState(false);
+  const [focusMode, setFocusMode] = useState(() => getInitialUiPrefs().focusMode);
+  const [isTopBarHidden, setIsTopBarHidden] = useState(
+    () => getInitialUiPrefs().isTopBarHidden
+  );
   const [isTopBarHover, setIsTopBarHover] = useState(false);
-  const [uiHydrated, setUiHydrated] = useState(false);
-  const [hasHydrated, setHasHydrated] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(
+    useBoardStore.persist.hasHydrated()
+  );
   const [defaultColumn, setDefaultColumn] = useState<Ping["column"]>("Inbox");
   const [isTagEditOpen, setIsTagEditOpen] = useState(false);
   const [isClearDoneOpen, setIsClearDoneOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: "added" | "deleted" } | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [isStickyDrawerOpen, setIsStickyDrawerOpen] = useState(true);
+  const [isStickyTooltipVisible, setIsStickyTooltipVisible] = useState(false);
+  const stickyDrawerTransition = { type: "spring", stiffness: 340, damping: 32 } as const;
+  const isClient = typeof window !== "undefined";
 
   useEffect(() => {
     const unsubscribe = useBoardStore.persist.onFinishHydration(() => {
       setHasHydrated(true);
     });
-    setHasHydrated(useBoardStore.persist.hasHydrated());
     return unsubscribe;
   }, []);
 
@@ -103,37 +134,10 @@ export default function Home() {
       console.error("Failed to migrate legacy data:", error);
     }
     migrateLegacyData(DEFAULT_PINGS as unknown as Ping[], []);
-  }, [hasHydrated]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Load UI preferences (focus mode + top nav visibility)
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("pingboard:ui");
-      if (stored) {
-        const parsed = JSON.parse(stored) as {
-          focusMode?: boolean;
-          isTopBarHidden?: boolean;
-        };
-        if (typeof parsed.focusMode === "boolean") {
-          setFocusMode(parsed.focusMode);
-        }
-        if (typeof parsed.isTopBarHidden === "boolean") {
-          setIsTopBarHidden(parsed.isTopBarHidden);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load UI prefs:", error);
-    }
-    setUiHydrated(true);
-  }, []);
+  }, [hasHydrated, migrateLegacyData, pings.length, tagsById]);
 
   // Persist UI preferences
   useEffect(() => {
-    if (!uiHydrated) return;
     try {
       localStorage.setItem(
         "pingboard:ui",
@@ -142,28 +146,14 @@ export default function Home() {
     } catch (error) {
       console.error("Failed to save UI prefs:", error);
     }
-  }, [focusMode, isTopBarHidden, uiHydrated]);
-
-  // Keyboard shortcut: Cmd+K opens Add Ping
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const isMacCmdK =
-        (event.metaKey || event.ctrlKey) &&
-        event.key.toLowerCase() === "k";
-      if (!isMacCmdK) return;
-      event.preventDefault();
-      handleAddPing();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [focusMode, isTopBarHidden]);
 
   // CRUD Functions
-  const handleAddPing = (column?: Ping["column"]) => {
+  function handleAddPing(column?: Ping["column"]) {
     setEditingPing(null);
     setDefaultColumn(column ?? "Inbox");
     setIsModalOpen(true);
-  };
+  }
 
   const handleEditPing = (ping: Ping) => {
     setEditingPing(ping);
@@ -207,6 +197,20 @@ export default function Home() {
     setIsModalOpen(false);
     setEditingPing(null);
   };
+
+  // Keyboard shortcut: Cmd+K opens Add Ping
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isMacCmdK =
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "k";
+      if (!isMacCmdK) return;
+      event.preventDefault();
+      handleAddPing();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -280,55 +284,91 @@ export default function Home() {
       </AnimatePresence>
 
       {/* Board - Horizontal scrollable columns */}
-      <section className="flex-1 overflow-hidden p-6">
-        <div className="flex gap-6 h-full">
-          <div className="flex-1 overflow-x-auto overflow-y-hidden">
-            <div className="flex gap-6 h-full min-w-max pr-4">
+      <section className="relative flex-1 overflow-hidden p-6">
+        <div
+          className={`h-full overflow-x-auto overflow-y-hidden transition-[padding] duration-300 ${
+            isStickyDrawerOpen ? "pr-[520px]" : "pr-16"
+          }`}
+        >
+          <div className="flex gap-6 h-full min-w-max pr-4">
+            <Column
+              columnName="Inbox"
+              pings={getPingsByColumn("Inbox")}
+              onAddPing={handleAddPing}
+              onEditPing={handleEditPing}
+              onDeletePing={handleDeletePing}
+              onMovePing={handleMovePing}
+              onReorderPing={handleReorderPing}
+            />
+            <Column
+              columnName="In Progress"
+              pings={getPingsByColumn("In Progress")}
+              onAddPing={handleAddPing}
+              onEditPing={handleEditPing}
+              onDeletePing={handleDeletePing}
+              onMovePing={handleMovePing}
+              onReorderPing={handleReorderPing}
+            />
+            {!focusMode && (
               <Column
-                columnName="Inbox"
-                pings={getPingsByColumn("Inbox")}
+                columnName="Done"
+                pings={getPingsByColumn("Done")}
                 onAddPing={handleAddPing}
                 onEditPing={handleEditPing}
                 onDeletePing={handleDeletePing}
                 onMovePing={handleMovePing}
                 onReorderPing={handleReorderPing}
               />
-              <Column
-                columnName="In Progress"
-                pings={getPingsByColumn("In Progress")}
-                onAddPing={handleAddPing}
-                onEditPing={handleEditPing}
-                onDeletePing={handleDeletePing}
-                onMovePing={handleMovePing}
-                onReorderPing={handleReorderPing}
-              />
-              {!focusMode && (
-                <Column
-                  columnName="Done"
-                  pings={getPingsByColumn("Done")}
-                  onAddPing={handleAddPing}
-                  onEditPing={handleEditPing}
-                  onDeletePing={handleDeletePing}
-                  onMovePing={handleMovePing}
-                  onReorderPing={handleReorderPing}
-                />
-              )}
-            </div>
-          </div>
-          <div className="w-[380px] flex-shrink-0">
-            <StickyNotesBoard />
+            )}
           </div>
         </div>
+
+        <motion.aside
+          className="absolute right-0 top-0 z-20 h-full w-full max-w-[500px] rounded-l-2xl border-l border-base-300 bg-base-100 p-4 shadow-lg"
+          initial={false}
+          animate={{ x: isStickyDrawerOpen ? 0 : "100%" }}
+          transition={stickyDrawerTransition}
+          onAnimationComplete={() => {
+            setIsStickyTooltipVisible(!isStickyDrawerOpen);
+          }}
+        >
+          <div
+            className={`absolute right-[calc(100%+0.2rem)] top-5 z-30 -translate-y-1/2 ${
+              isStickyTooltipVisible ? "tooltip tooltip-left" : ""
+            }`}
+            data-tip={isStickyTooltipVisible ? "Open sticky notes" : undefined}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setIsStickyTooltipVisible(false);
+                setIsStickyDrawerOpen((prev) => !prev);
+              }}
+              className="btn btn-square btn-sm border border-base-300 bg-base-100 no-focus-ring"
+              aria-label={isStickyDrawerOpen ? "Collapse sticky notes drawer" : "Open sticky notes drawer"}
+            >
+              {isStickyDrawerOpen ? (
+                <ChevronRightIcon className="h-4 w-4" />
+              ) : (
+                <ChevronLeftIcon className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+          <StickyNotesBoard />
+        </motion.aside>
       </section>
 
       {/* Add/Edit Ping Modal */}
-      <AddPingModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onSave={handleSavePing}
-        editingPing={editingPing}
-        defaultColumn={defaultColumn}
-      />
+      {isModalOpen && (
+        <AddPingModal
+          key={editingPing?.id ?? `new-${defaultColumn}`}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          onSave={handleSavePing}
+          editingPing={editingPing}
+          defaultColumn={defaultColumn}
+        />
+      )}
       <TagEditModal
         isOpen={isTagEditOpen}
         onClose={() => setIsTagEditOpen(false)}
@@ -350,7 +390,7 @@ export default function Home() {
         onCancel={() => setIsClearDoneOpen(false)}
       />
 
-      {mounted &&
+      {isClient &&
         createPortal(
           <AnimatePresence>
             {toast && (

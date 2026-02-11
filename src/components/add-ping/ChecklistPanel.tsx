@@ -22,11 +22,13 @@ export default function ChecklistPanel({
   onToggleChecklistItem,
   onRemoveChecklistItem,
 }: ChecklistPanelProps) {
+  // Checklist progress
   const completedCount = checklist.filter((item) => item.done).length;
   const totalCount = checklist.length;
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   return (
+    // Checklist panel layout
     <div className="space-y-4 rounded-xl bg-base-200/70 border border-base-300 p-4 flex flex-col min-h-0 h-full">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-base-content">Checklist</span>

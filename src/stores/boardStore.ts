@@ -102,12 +102,12 @@ const getPreferredStorage = () => {
     window.localStorage.setItem(testKey, "1");
     window.localStorage.removeItem(testKey);
     return window.localStorage;
-  } catch (error) {
+  } catch {
     try {
       window.sessionStorage.setItem(testKey, "1");
       window.sessionStorage.removeItem(testKey);
       return window.sessionStorage;
-    } catch (innerError) {
+    } catch {
       return null;
     }
   }
@@ -300,7 +300,6 @@ export const useBoardStore = create<BoardState>()(
           tagOrder: order.filter((id) => state.tags[id]),
         })),
       migrateLegacyData: (legacyPings, legacyTags) => {
-        const tagIds: Record<string, string> = {};
         const migratedPings = (legacyPings || []).map((ping) => {
           if (!("tags" in ping)) return ping;
           const anyPing = ping as Ping & { tags?: string[] };
@@ -314,12 +313,20 @@ export const useBoardStore = create<BoardState>()(
               tagId = created.tag?.id;
             }
             if (tagId) {
-              tagIds[label] = tagId;
               nextTagIds.push(tagId);
             }
           });
-          const { tags, ...rest } = anyPing as any;
-          return { ...rest, tagIds: nextTagIds };
+          return {
+            id: anyPing.id,
+            title: anyPing.title,
+            column: anyPing.column,
+            createdAt: anyPing.createdAt,
+            priority: anyPing.priority,
+            dueDate: anyPing.dueDate,
+            description: anyPing.description,
+            checklist: anyPing.checklist,
+            tagIds: nextTagIds,
+          } as Ping;
         });
 
         (legacyTags || []).forEach((label) => {

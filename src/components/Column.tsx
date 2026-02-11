@@ -29,23 +29,25 @@ export default function Column({
   onMovePing,
   onReorderPing,
 }: ColumnProps) {
+  // Drag state
   const [isDraggedOver, setIsDraggedOver] = useState(false);
-  const [dragCounter, setDragCounter] = useState(0);
+  const dragCounterRef = useRef(0);
   const [dropIndicator, setDropIndicator] = useState<{
     id: string;
     position: "before" | "after";
   } | null>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const dragIdRef = useRef<string | null>(null);
   const dragRectRef = useRef<{ top: number; right: number; bottom: number; left: number } | null>(
     null
   );
-  const effectiveDragId = activeDragId ?? dragIdRef.current;
+  const effectiveDragId = activeDragId;
 
   type DropPosition = "before" | "after";
+
+  // Shared helpers
   const resetColumnDragState = () => {
     setIsDraggedOver(false);
-    setDragCounter(0);
+    dragCounterRef.current = 0;
     setDropIndicator(null);
   };
 
@@ -56,7 +58,7 @@ export default function Column({
     try {
       const parsed = JSON.parse(raw) as { id?: string };
       return parsed.id ?? null;
-    } catch (error) {
+    } catch {
       return null;
     }
   };
@@ -93,12 +95,12 @@ export default function Column({
     return false;
   };
 
+  // Global drag event listeners
   useEffect(() => {
     const handleDragStart = (event: Event) => {
       const custom = event as CustomEvent<{ id?: string }>;
       const id = custom.detail?.id ?? null;
       setActiveDragId(id);
-      dragIdRef.current = id;
     };
     const handleDragRect = (
       event: Event
@@ -113,9 +115,10 @@ export default function Column({
     };
     const handleDragEnd = () => {
       setActiveDragId(null);
-      dragIdRef.current = null;
       dragRectRef.current = null;
       setDropIndicator(null);
+      dragCounterRef.current = 0;
+      setIsDraggedOver(false);
     };
     window.addEventListener("ping-drag-start", handleDragStart as EventListener);
     window.addEventListener("ping-drag-rect", handleDragRect as EventListener);
@@ -129,22 +132,20 @@ export default function Column({
     };
   }, []);
 
+  // Column-level drag handlers
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setDragCounter((prev) => prev + 1);
+    dragCounterRef.current += 1;
     setIsDraggedOver(true);
   };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setDragCounter((prev) => {
-      const newCount = prev - 1;
-      if (newCount === 0) {
-        setIsDraggedOver(false);
-        setDropIndicator(null);
-      }
-      return newCount;
-    });
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDraggedOver(false);
+      setDropIndicator(null);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -170,6 +171,7 @@ export default function Column({
     }
   };
 
+  // Item-level drag handlers
   const handleItemDragOver = (e: React.DragEvent<HTMLDivElement>, overId: string) => {
     e.preventDefault();
     const draggedId = parseDragId(e.dataTransfer) ?? effectiveDragId;
@@ -177,7 +179,6 @@ export default function Column({
       setDropIndicator(null);
       return;
     }
-    dragIdRef.current = draggedId;
     if (shouldSuppressIndicator(draggedId, overId, e.clientX, e.clientY)) {
       setDropIndicator(null);
       return;
@@ -220,6 +221,7 @@ export default function Column({
   };
 
   return (
+    // Column layout
     <motion.div
       className={`flex flex-col h-full rounded-xl p-4 w-[360px] flex-shrink-0 transition-all duration-200 ${
         isDraggedOver 
@@ -297,7 +299,6 @@ export default function Column({
                     ping={ping}
                     onEdit={onEditPing}
                     onDelete={onDeletePing}
-                    onMove={onMovePing}
                   />
                 </div>
                 {dropIndicator?.id === ping.id &&

@@ -14,12 +14,14 @@ const randomColor = (colors: string[]) =>
   colors[Math.floor(Math.random() * colors.length)];
 
 export default function StickyNotesBoard() {
+  // Store selectors
   const notes = useStickyStore((state) => state.notes);
   const addNote = useStickyStore((state) => state.addNote);
   const updateNote = useStickyStore((state) => state.updateNote);
   const deleteNote = useStickyStore((state) => state.deleteNote);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // Add a note near canvas center
   const handleAddNote = () => {
     const bounds = containerRef.current?.getBoundingClientRect();
     const width = bounds?.width ?? 320;
@@ -37,9 +39,11 @@ export default function StickyNotesBoard() {
     addNote(newNote);
   };
 
+  // Stable color list for note cards
   const colors = useMemo(() => STICKY_COLORS, []);
 
   return (
+    // Sticky board layout
     <div className="h-full w-full flex flex-col gap-4">
       <StickyToolbar onAddNote={handleAddNote} />
       <StickyCanvas

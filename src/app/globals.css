@@ -75,7 +75,7 @@ a:focus,
   outline: none;
   box-shadow: none;
   border-color: transparent;
-  background-color: #f1f5f9;
+  background-color: rgb(0 0 0 / 0.05) !important;
 }
 
 /* Secondary buttons: soft fill, no outline */
@@ -172,4 +172,14 @@ textarea {
 
 .btn:active:not(:disabled) {
   transform: scale(0.98);
+}
+
+/* Disable focus ring for specific controls (e.g., sticky drawer chevron) */
+.no-focus-ring:focus,
+.no-focus-ring:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
 }

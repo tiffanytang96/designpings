@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBoardStore } from "@/stores/boardStore";
-import { Bars3Icon, TrashIcon } from "@heroicons/react/24/outline";
+import { TrashIcon } from "@heroicons/react/24/outline";
+import { GripVertical } from "lucide-react";
 
 interface TagEditModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface TagEditModalProps {
 }
 
 export default function TagEditModal({ isOpen, onClose }: TagEditModalProps) {
+  // Store selectors
   const tagOrder = useBoardStore((state) => state.tagOrder);
   const tagsById = useBoardStore((state) => state.tags);
   const setTagOrder = useBoardStore((state) => state.setTagOrder);
@@ -23,7 +25,6 @@ export default function TagEditModal({ isOpen, onClose }: TagEditModalProps) {
   const deleteTag = useBoardStore((state) => state.deleteTag);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<{
     id: string;
     position: "before" | "after";
@@ -33,17 +34,7 @@ export default function TagEditModal({ isOpen, onClose }: TagEditModalProps) {
   const [newTagError, setNewTagError] = useState<string | undefined>();
   const [showNewTagInput, setShowNewTagInput] = useState(false);
 
-  const moveTag = (fromId: string, toId: string) => {
-    if (fromId === toId) return;
-    const order = [...tagOrder];
-    const fromIndex = order.indexOf(fromId);
-    const toIndex = order.indexOf(toId);
-    if (fromIndex === -1 || toIndex === -1) return;
-    order.splice(fromIndex, 1);
-    order.splice(toIndex, 0, fromId);
-    setTagOrder(order);
-  };
-
+  // Tag ordering helper
   const moveTagWithPosition = (
     fromId: string,
     toId: string,
@@ -77,6 +68,7 @@ export default function TagEditModal({ isOpen, onClose }: TagEditModalProps) {
   };
 
   return (
+    // Tag editor modal
     <AnimatePresence>
       {isOpen && (
         <div className="modal modal-open">
@@ -202,7 +194,6 @@ export default function TagEditModal({ isOpen, onClose }: TagEditModalProps) {
                         moveTagWithPosition(draggingId, tag.id, position);
                         dropHandledRef.current = true;
                         setDraggingId(null);
-                        setDragOverId(null);
                         setDropIndicator(null);
                       }}
                     >
@@ -214,7 +205,6 @@ export default function TagEditModal({ isOpen, onClose }: TagEditModalProps) {
                         draggable
                         onDragStart={() => {
                           setDraggingId(tag.id);
-                          setDragOverId(tag.id);
                           setDropIndicator(null);
                           dropHandledRef.current = false;
                         }}
@@ -229,13 +219,12 @@ export default function TagEditModal({ isOpen, onClose }: TagEditModalProps) {
                           }
                           dropHandledRef.current = false;
                           setDraggingId(null);
-                          setDragOverId(null);
                           setDropIndicator(null);
                         }}
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-base-content/50">
-                            <Bars3Icon className="w-4 h-4" aria-hidden="true" />
+                            <GripVertical className="w-4 h-4" aria-hidden="true" />
                           </span>
                           <div className="flex-1">
                             <input

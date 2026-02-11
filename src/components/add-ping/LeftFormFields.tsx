@@ -58,6 +58,7 @@ export default function LeftFormFields({
   onTagFocus,
   onTagBlur,
 }: LeftFormFieldsProps) {
+  // Refs and dropdown position
   const inputRef = useRef<HTMLInputElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<{
     top: number;
@@ -76,11 +77,13 @@ export default function LeftFormFields({
     });
   };
 
+  // Update dropdown position when list visibility changes
   useLayoutEffect(() => {
     if (!showSuggestions) return;
     updateDropdownPosition();
   }, [showSuggestions, tagInput]);
 
+  // Keep dropdown aligned on scroll/resize
   useEffect(() => {
     if (!showSuggestions) return;
     const handleScroll = () => updateDropdownPosition();
@@ -94,6 +97,7 @@ export default function LeftFormFields({
   }, [showSuggestions]);
 
   return (
+    // Left-side form layout
     <div className="space-y-4 pl-1">
       {/* Title input */}
       <div className="form-control">
