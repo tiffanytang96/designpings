@@ -1,82 +1,135 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Bars3Icon,
+  EllipsisVerticalIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  SparklesIcon,
+  TagIcon,
+  TrashIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
+
 interface TopBarProps {
   onAddPing: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  focusMode: boolean;
+  onToggleFocusMode: () => void;
+  isTopBarHidden: boolean;
+  onToggleTopBarHidden: () => void;
+  onOpenTagEditor: () => void;
+  onClearDone: () => void;
 }
 
 export default function TopBar({
   onAddPing,
   searchQuery,
   onSearchChange,
+  focusMode,
+  onToggleFocusMode,
+  isTopBarHidden,
+  onToggleTopBarHidden,
+  onOpenTagEditor,
+  onClearDone,
 }: TopBarProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<{ top: number; left: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuButtonRef.current) return;
+    const rect = menuButtonRef.current.getBoundingClientRect();
+    setMenuStyle({
+      top: rect.bottom + 8,
+      left: rect.right,
+    });
+  }, [menuOpen]);
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !menuButtonRef.current || !menuRef.current) return;
+    const rect = menuButtonRef.current.getBoundingClientRect();
+    const menuRect = menuRef.current.getBoundingClientRect();
+    const padding = 8;
+    let left = rect.right - menuRect.width;
+    left = Math.min(Math.max(left, padding), window.innerWidth - menuRect.width - padding);
+    let top = rect.bottom + 8;
+    if (top + menuRect.height + padding > window.innerHeight) {
+      top = Math.max(padding, rect.top - menuRect.height - 8);
+    }
+    setMenuStyle((prev) => {
+      if (!prev || prev.left !== left || prev.top !== top) {
+        return { top, left };
+      }
+      return prev;
+    });
+  }, [menuOpen, menuStyle]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (menuButtonRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setMenuOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [menuOpen]);
+
   return (
     <div className="bg-base-100 border-b border-base-300 px-6 py-4">
       <div className="flex items-center justify-between gap-6 max-w-screen-2xl mx-auto">
         {/* Left: App Name/Logo */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            className="w-6 h-6 text-primary"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+        <div className="flex items-center flex-shrink-0">
+          <div className="h-10 w-[200px] overflow-hidden rounded-lg">
+            <img
+              src="/designpings.png"
+              alt="Design Pings"
+              className="h-full w-full object-cover object-left"
             />
-          </svg>
-          <h1 className="text-xl font-bold text-base-content">Design Pings</h1>
+          </div>
         </div>
 
         {/* Center: Search/Filter */}
         <div className="flex-1 max-w-md">
           <div className="join w-full">
-            <label className="input input-bordered join-item flex items-center gap-2 w-full">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                className="w-5 h-5 opacity-70"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+            <label
+              className={`input input-bordered join-item flex items-center gap-2 w-full focus-within:outline-none focus-within:ring-2 focus-within:ring-[#fed7aa] rounded-l-xl ${
+                searchQuery ? "rounded-r-none" : "rounded-r-xl"
+              }`}
+            >
+              <MagnifyingGlassIcon className="w-5 h-5 opacity-70" />
               <input
                 type="text"
                 placeholder="Search pings..."
-                className="grow placeholder:text-base-content/50"
+                className="grow bg-transparent border-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 !outline-none !outline-offset-0 placeholder:text-base-content/50"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
               />
             </label>
             {searchQuery && (
               <button
-                className="btn btn-ghost join-item text-base-content"
+                className="btn btn-ghost join-item text-base-content border border-base-300 border-l-0 rounded-l-none rounded-r-xl"
                 onClick={() => onSearchChange("")}
                 aria-label="Clear search"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  className="w-5 h-5"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
+                <XMarkIcon className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -85,120 +138,109 @@ export default function TopBar({
         {/* Right: Add Ping Button + Settings */}
         <div className="flex items-center gap-3 flex-shrink-0">
           <button
-            className="btn btn-primary"
+            className="btn btn-primary rounded-md"
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
               onAddPing();
             }}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              className="w-5 h-5"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Add Ping
+            <PlusIcon className="w-5 h-5" />
+            <span className="inline-flex items-center gap-2">
+              Add Ping
+              <span className="inline-flex items-center gap-1 text-xs text-base-content/70 border border-base-100/60 rounded px-1.5 py-0.5 bg-base-100/20">
+                ⌘K
+              </span>
+            </span>
           </button>
 
           {/* Settings Menu */}
-          <div className="dropdown dropdown-end">
+          <div className="relative z-[200]">
             <button
-              tabIndex={0}
-              className="btn btn-ghost btn-circle text-base-content"
+              ref={menuButtonRef}
+              className="btn btn-ghost btn-square text-base-content rounded-md"
               aria-label="Settings"
+              onClick={() => setMenuOpen((prev) => !prev)}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                className="w-5 h-5"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-                />
-              </svg>
+              <EllipsisVerticalIcon className="w-5 h-5" />
             </button>
-            <ul
-              tabIndex={0}
-              className="dropdown-content menu p-2 shadow-2xl bg-base-100 rounded-box w-52 mt-2"
-            >
-              <li>
-                <a className="text-base-content">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    className="w-4 h-4"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                  Settings
-                </a>
-              </li>
-              <li>
-                <a className="text-base-content">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    className="w-4 h-4"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                    />
-                  </svg>
-                  Filter Options
-                </a>
-              </li>
-              <li>
-                <a className="text-base-content">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    className="w-4 h-4"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                  Clear All Done
-                </a>
-              </li>
-            </ul>
+            {mounted &&
+              createPortal(
+                <AnimatePresence>
+                  {menuOpen && menuStyle && (
+                    <motion.div
+                      ref={menuRef}
+                      className="fixed z-[2000] w-56 rounded-box bg-base-100 shadow-2xl border border-base-300 origin-top-right"
+                      style={{ top: menuStyle.top, left: menuStyle.left }}
+                      initial={{ opacity: 0, scale: 0.98, y: -6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.98, y: -6 }}
+                      transition={{ duration: 0.16, ease: "easeOut" }}
+                    >
+                      <ul className="menu p-2 w-full">
+                        <li>
+                          <button
+                            type="button"
+                            className="text-base-content flex items-center gap-2 w-full"
+                            onClick={() => {
+                              onToggleFocusMode();
+                              setMenuOpen(false);
+                            }}
+                          >
+                            <SparklesIcon className="w-4 h-4" />
+                            {focusMode ? "Exit Focus Mode" : "Enter Focus Mode"}
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-base-content"
+                            onClick={() => onToggleTopBarHidden()}
+                          >
+                            <div className="flex items-center gap-2 text-base-content text-sm">
+                              <Bars3Icon className="w-4 h-4" />
+                              Hide Navigation
+                            </div>
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-sm pointer-events-none"
+                              checked={isTopBarHidden}
+                              onChange={() => {}}
+                            />
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            type="button"
+                            className="text-base-content flex items-center gap-2 w-full"
+                            onClick={() => {
+                              onOpenTagEditor();
+                              setMenuOpen(false);
+                            }}
+                          >
+                            <TagIcon className="w-4 h-4" />
+                            Edit Tags
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            type="button"
+                            className="text-base-content flex items-center gap-2 w-full"
+                            onClick={() => {
+                              onClearDone();
+                              setMenuOpen(false);
+                            }}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                            Clear All Done
+                          </button>
+                        </li>
+                      </ul>
+                    </motion.div>
+                  )}
+                </AnimatePresence>,
+                document.body
+              )}
           </div>
         </div>
       </div>

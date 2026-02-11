@@ -1,17 +1,25 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
+import {
+  CalendarDaysIcon,
+  ClipboardDocumentCheckIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
 import DeleteConfirmModal from "./DeleteConfirmModal";
+import { useBoardStore } from "@/stores/boardStore";
 
 interface Ping {
   id: string;
   title: string;
   column: "Inbox" | "In Progress" | "Done";
-  tags?: string[];
+  tagIds?: string[];
   priority?: "low" | "medium" | "high" | "urgent";
   createdAt: string;
   dueDate?: string; // YYYY-MM-DD
+  description?: string;
+  checklist?: { id: string; text: string; done: boolean }[];
 }
 
 interface PingCardProps {
@@ -22,7 +30,11 @@ interface PingCardProps {
 }
 
 export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardProps) {
-  const tags = ping.tags ?? [];
+  const tagsById = useBoardStore((state) => state.tags);
+  const tags = useMemo(
+    () => (ping.tagIds || []).map((id) => tagsById[id]).filter(Boolean),
+    [ping.tagIds, tagsById]
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -35,13 +47,6 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
   const tagsContainerRef = useRef<HTMLDivElement>(null);
   const tagsMeasureRef = useRef<HTMLDivElement>(null);
 
-  const priorityColors = {
-    low: "border-l-green-500",
-    medium: "border-l-amber-400",
-    high: "border-l-rose-500",
-    urgent: "border-l-purple-500",
-  };
-
   const priorityBadgeColors = {
     low: "bg-green-500/10 text-green-700 font-medium border-green-400/60 rounded-md",
     medium: "bg-amber-500/10 text-amber-700 font-medium border-amber-400/60 rounded-md",
@@ -49,27 +54,16 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
     urgent: "bg-purple-500/10 text-purple-700 font-medium border-purple-400/60 rounded-md",
   };
 
-  const columnOptions: Ping["column"][] = ["Inbox", "In Progress", "Done"];
-
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
-
   const formatDueDate = (dateStr: string) => {
     const date = new Date(`${dateStr}T00:00:00`);
     if (Number.isNaN(date.getTime())) return dateStr;
     return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   };
+
+  const checklistTotal = ping.checklist ? ping.checklist.length : 0;
+  const checklistDone = ping.checklist
+    ? ping.checklist.filter((item) => item.done).length
+    : 0;
 
   // Check if title is truncated
   useEffect(() => {
@@ -146,12 +140,21 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
     e.dataTransfer!.setData("text/plain", ping.id);
     document.body.classList.add("dragging");
     document.documentElement.classList.add("dragging");
+    window.dispatchEvent(new CustomEvent("ping-drag-start", { detail: { id: ping.id } }));
     if (cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect();
       dragOffsetRef.current = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       };
+      window.dispatchEvent(
+        new CustomEvent("ping-drag-rect", {
+          detail: {
+            id: ping.id,
+            rect: { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left },
+          },
+        })
+      );
       const clone = cardRef.current.cloneNode(true) as HTMLDivElement;
       clone.style.width = `${rect.width}px`;
       clone.style.height = `${rect.height}px`;
@@ -230,7 +233,8 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
     >
       <motion.div
         ref={cardRef}
-        className="card bg-base-100 shadow-sm cursor-grab active:cursor-grabbing flex flex-row overflow-visible"
+        data-ping-id={ping.id}
+        className="card bg-base-100 shadow-sm cursor-grab active:cursor-grabbing flex flex-row overflow-visible min-h-[140px]"
         onClick={() => onEdit(ping)}
         whileHover={{
           scale: 1.02,
@@ -257,7 +261,7 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
             }`}
           />
         )}
-        {!ping.priority && <div className="w-1 rounded-r-md flex-shrink-0 bg-base-300" />}
+        {!ping.priority && <div className="w-1.5 my-4 ml-3 rounded-lg flex-shrink-0 bg-base-300" />}
 
       <div className="card-body p-4 gap-3 flex-1">
         {/* Header: Title + Delete */}
@@ -273,27 +277,14 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
 
           {/* Delete button */}
           <button
-            className="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-error"
+            className="btn btn-ghost btn-xs btn-square text-base-content/40 hover:text-error hover:bg-base-200/60 rounded-md"
             onClick={(e) => {
               e.stopPropagation();
               setShowDeleteConfirm(true);
             }}
             aria-label="Delete ping"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              className="w-4 h-4"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-              />
-            </svg>
+            <TrashIcon className="w-4 h-4" />
           </button>
 
           {/* Delete confirmation modal */}
@@ -309,19 +300,19 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
         </div>
 
         {/* Tags */}
-        {tags.length > 0 && (
+        {tags.length > 0 ? (
           <>
-            <div ref={tagsContainerRef} className="flex flex-wrap gap-1.5">
-              {(visibleTagCount > 0 ? tags.slice(0, visibleTagCount) : []).map((tag, index) => (
-                <span key={index} className="badge badge-sm bg-base-200 text-base-content border-none">
-                  {tag}
+            <div ref={tagsContainerRef} className="flex flex-wrap gap-1.5 min-h-[24px]">
+              {(visibleTagCount > 0 ? tags.slice(0, visibleTagCount) : []).map((tag) => (
+                <span key={tag.id} className="badge badge-sm bg-base-200 text-base-content border-none">
+                  {tag.label}
                 </span>
               ))}
 
               {visibleTagCount < tags.length && (
                 <span
                   className="badge badge-sm bg-base-200 text-base-content/70 border-none tooltip tooltip-top"
-                  data-tip={tags.slice(visibleTagCount).join(", ")}
+                  data-tip={tags.slice(visibleTagCount).map((t) => t.label).join(", ")}
                 >
                   +{tags.length - visibleTagCount}
                 </span>
@@ -334,13 +325,13 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
               className="flex flex-wrap gap-1.5 absolute -left-[9999px] top-0 opacity-0 pointer-events-none"
               aria-hidden="true"
             >
-              {tags.map((tag, index) => (
+              {tags.map((tag) => (
                 <span
-                  key={`measure-${index}`}
+                  key={`measure-${tag.id}`}
                   data-measure-tag
-                  className="badge badge-sm bg-base-300 text-base-content border-none"
+                  className="badge badge-sm bg-base-200 text-base-content border-none"
                 >
-                  {tag}
+                  {tag.label}
                 </span>
               ))}
               <span
@@ -351,52 +342,32 @@ export default function PingCard({ ping, onEdit, onDelete, onMove }: PingCardPro
               </span>
             </div>
           </>
+        ) : (
+          <div className="min-h-[24px]" aria-hidden="true" />
         )}
 
-        {/* Footer: Priority + Timestamp */}
-        <div className="flex items-center justify-between gap-2 pt-1">
+        {/* Footer: Priority + Due Date + Checklist */}
+        <div className="flex items-center justify-between gap-2 pt-1 min-h-6">
           <div className="flex items-center gap-2">
             {ping.priority && (
               <span className={`badge badge-sm px-1.5 ${priorityBadgeColors[ping.priority]}`}>
                 {ping.priority.charAt(0).toUpperCase() + ping.priority.slice(1)}
               </span>
             )}
-            <span className="text-xs text-base-content/60 inline-flex items-center gap-1">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                className="w-3.5 h-3.5"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 6v6l4 2M12 3a9 9 0 100 18 9 9 0 000-18z"
-                />
-              </svg>
-              {formatTimestamp(ping.createdAt)}
-            </span>
             {ping.dueDate && (
               <span className="text-xs text-base-content/60 inline-flex items-center gap-1">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  className="w-3.5 h-3.5"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M8 7V3m8 4V3M4 11h16M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
-                  />
-                </svg>
+                <CalendarDaysIcon className="w-3.5 h-3.5" aria-hidden="true" />
                 {formatDueDate(ping.dueDate)}
+              </span>
+            )}
+            {ping.checklist && ping.checklist.length > 0 && (
+              <span
+                className={`text-xs inline-flex items-center gap-1 ${
+                  checklistDone === checklistTotal ? "text-green-600" : "text-base-content/60"
+                }`}
+              >
+                <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                {checklistDone}/{checklistTotal}
               </span>
             )}
           </div>

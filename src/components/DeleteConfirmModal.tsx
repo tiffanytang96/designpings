@@ -9,6 +9,12 @@ interface DeleteConfirmModalProps {
   title: string;
   onConfirm: () => void;
   onCancel: () => void;
+  heading?: string;
+  description?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  confirmClassName?: string;
+  cancelClassName?: string;
 }
 
 export default function DeleteConfirmModal({
@@ -16,6 +22,12 @@ export default function DeleteConfirmModal({
   title,
   onConfirm,
   onCancel,
+  heading,
+  description,
+  confirmLabel = "Delete",
+  cancelLabel = "Cancel",
+  confirmClassName = "btn btn-error btn-sm",
+  cancelClassName = "btn btn-neutral btn-sm",
 }: DeleteConfirmModalProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -37,16 +49,19 @@ export default function DeleteConfirmModal({
             className="bg-base-100 rounded-lg p-6 shadow-lg max-w-sm mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="font-semibold text-base-content mb-2">Delete Ping?</h3>
+            <h3 className="font-semibold text-base-content mb-2">
+              {heading ?? "Delete Ping?"}
+            </h3>
             <p className="text-sm text-base-content/70 mb-6">
-              Are you sure you want to delete "{title}"? This action cannot be undone.
+              {description ??
+                `Are you sure you want to delete "${title}"? This action cannot be undone.`}
             </p>
             <div className="flex gap-3 justify-end">
-              <button className="btn btn-neutral btn-sm" onClick={onCancel}>
-                Cancel
+              <button className={cancelClassName} onClick={onCancel}>
+                {cancelLabel}
               </button>
-              <button className="btn btn-error btn-sm" onClick={onConfirm}>
-                Delete
+              <button className={confirmClassName} onClick={onConfirm}>
+                {confirmLabel}
               </button>
             </div>
           </motion.div>

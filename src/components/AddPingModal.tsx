@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import ChecklistPanel from "./add-ping/ChecklistPanel";
+import LeftFormFields from "./add-ping/LeftFormFields";
+import { TAG_RULES, useBoardStore } from "@/stores/boardStore";
+import type { ChecklistItem, PingColumn, PingPriority, Tag } from "./add-ping/types";
 
 interface Ping {
   id: string;
   title: string;
-  column: "Inbox" | "In Progress" | "Done";
-  tags?: string[];
-  priority?: "low" | "medium" | "high" | "urgent";
+  column: PingColumn;
+  tagIds?: string[];
+  priority?: PingPriority;
   createdAt: string;
   dueDate?: string; // YYYY-MM-DD
+  description?: string;
+  checklist?: ChecklistItem[];
 }
 
 interface AddPingModalProps {
@@ -18,6 +24,7 @@ interface AddPingModalProps {
   onClose: () => void;
   onSave: (ping: Omit<Ping, "id" | "createdAt">) => void;
   editingPing?: Ping | null;
+  defaultColumn?: Ping["column"];
 }
 
 export default function AddPingModal({
@@ -25,13 +32,24 @@ export default function AddPingModal({
   onClose,
   onSave,
   editingPing,
+  defaultColumn = "Inbox",
 }: AddPingModalProps) {
+  const tagsById = useBoardStore((state) => state.tags);
+  const tagOrder = useBoardStore((state) => state.tagOrder);
+  const createOrReuseTag = useBoardStore((state) => state.createOrReuseTag);
   const [title, setTitle] = useState("");
   const [column, setColumn] = useState<Ping["column"]>("Inbox");
-  const [priority, setPriority] = useState<Ping["priority"] | "">("");
+  const [priority, setPriority] = useState<PingPriority | "">("low");
   const [tagInput, setTagInput] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState("");
+  const [description, setDescription] = useState("");
+  const [checklistInput, setChecklistInput] = useState("");
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [tagError, setTagError] = useState<string | undefined>();
+  const [priorityError, setPriorityError] = useState<string | undefined>();
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
 
   // Populate form when editing
   useEffect(() => {
@@ -39,47 +57,160 @@ export default function AddPingModal({
       setTitle(editingPing.title);
       setColumn(editingPing.column);
       setPriority(editingPing.priority || "");
-      setTags(editingPing.tags || []);
+      setSelectedTagIds(editingPing.tagIds || []);
       setDueDate(editingPing.dueDate ? editingPing.dueDate.split("T")[0] : "");
+      setDescription(editingPing.description || "");
+      setChecklist(editingPing.checklist || []);
     } else {
       // Reset form for new ping
       setTitle("");
-      setColumn("Inbox");
-      setPriority("");
-      setTags([]);
+      setColumn(defaultColumn);
+      setPriority("low");
+      setSelectedTagIds([]);
       setDueDate("");
+      setDescription("");
+      setChecklist([]);
     }
+    setTagInput("");
+    setTagError(undefined);
+    setPriorityError(undefined);
+    setActiveSuggestionIndex(-1);
   }, [editingPing, isOpen]);
 
+  const allTags: Tag[] = tagOrder.map((id) => tagsById[id]).filter(Boolean);
+  const tagOrderIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    tagOrder.forEach((id, index) => map.set(id, index));
+    return map;
+  }, [tagOrder]);
+  const sortByTagOrder = (list: Tag[]) =>
+    [...list].sort(
+      (a, b) =>
+        (tagOrderIndex.get(a.id) ?? 0) - (tagOrderIndex.get(b.id) ?? 0)
+    );
+  const normalizedInput = tagInput.trim().toLowerCase();
+  const fuzzyMatch = (query: string, target: string) => {
+    let qi = 0;
+    for (let i = 0; i < target.length && qi < query.length; i += 1) {
+      if (target[i] === query[qi]) qi += 1;
+    }
+    return qi === query.length;
+  };
+
+  const suggestions = normalizedInput
+    ? allTags.filter((tag) => {
+        const label = tag.label.toLowerCase();
+        return (
+          !selectedTagIds.includes(tag.id) &&
+          (label.includes(normalizedInput) || fuzzyMatch(normalizedInput, label))
+        );
+      })
+    : [];
+
+  const dropdownSuggestions = normalizedInput
+    ? sortByTagOrder(suggestions)
+    : sortByTagOrder(allTags.filter((tag) => !selectedTagIds.includes(tag.id)));
+
+  const addTagLabel = (label: string) => {
+    const trimmed = label.replace(/,+$/, "").trim();
+    if (!trimmed) return;
+    if (selectedTagIds.length >= TAG_RULES.maxPerPing) {
+      setTagError(`Max ${TAG_RULES.maxPerPing} tags per ping.`);
+      return;
+    }
+    const result = createOrReuseTag(trimmed);
+    if (result.error) {
+      setTagError(result.error);
+      return;
+    }
+    const tagId = result.tag?.id;
+    if (!tagId) return;
+    if (selectedTagIds.includes(tagId)) {
+      setTagError("Tag already added.");
+      return;
+    }
+    setSelectedTagIds([...selectedTagIds, tagId]);
+    setTagInput("");
+    setTagError(undefined);
+    setActiveSuggestionIndex(-1);
+  };
+
   const handleAddTag = () => {
-    const trimmedTag = tagInput.trim();
-    if (trimmedTag && !tags.includes(trimmedTag)) {
-      setTags([...tags, trimmedTag]);
-      setTagInput("");
+    addTagLabel(tagInput);
+  };
+
+  const handleRemoveTag = (tagId: string) => {
+    setSelectedTagIds(selectedTagIds.filter((id) => id !== tagId));
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      if (suggestions[activeSuggestionIndex]) {
+        addTagLabel(suggestions[activeSuggestionIndex].label);
+        return;
+      }
+      addTagLabel(tagInput);
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) =>
+        Math.min(prev + 1, Math.max(0, suggestions.length - 1))
+      );
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) => Math.max(prev - 1, -1));
     }
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove));
+  const handleAddChecklistItem = () => {
+    const trimmed = checklistInput.trim();
+    if (!trimmed) return;
+    const newItem = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      text: trimmed,
+      done: false,
+    };
+    setChecklist([...(checklist || []), newItem]);
+    setChecklistInput("");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleChecklistKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleAddTag();
+      handleAddChecklistItem();
     }
+  };
+
+  const handleToggleChecklistItem = (id: string) => {
+    setChecklist(
+      (checklist || []).map((item) =>
+        item.id === id ? { ...item, done: !item.done } : item
+      )
+    );
+  };
+
+  const handleRemoveChecklistItem = (id: string) => {
+    setChecklist((checklist || []).filter((item) => item.id !== id));
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!title.trim()) return;
+    if (!priority) {
+      setPriorityError("Priority is required.");
+      return;
+    }
 
     const pingData = {
       title: title.trim(),
       column,
-      tags: tags.length > 0 ? tags : undefined,
-      priority: priority || undefined,
+      tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+      priority,
       dueDate: dueDate || undefined,
+      description: description.trim() || undefined,
+      checklist: checklist && checklist.length > 0 ? checklist : undefined,
     };
 
     onSave(pingData);
@@ -89,16 +220,27 @@ export default function AddPingModal({
   const handleClose = () => {
     setTitle("");
     setColumn("Inbox");
-    setPriority("");
-    setTags([]);
+    setPriority("low");
     setTagInput("");
+    setSelectedTagIds([]);
     setDueDate("");
+    setDescription("");
+    setChecklist([]);
+    setChecklistInput("");
+    setTagError(undefined);
+    setPriorityError(undefined);
+    setIsTagDropdownOpen(false);
     onClose();
   };
 
   const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
     handleClose();
+  };
+
+  const formatCreatedAt = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   };
 
   return (
@@ -113,7 +255,7 @@ export default function AddPingModal({
             onMouseDown={handleBackdropMouseDown}
           />
           <motion.div
-            className="modal-box max-w-md !transition-none !animate-none"
+            className="modal-box max-w-3xl !transition-none !animate-none h-[85vh] overflow-visible flex flex-col"
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}
@@ -123,222 +265,61 @@ export default function AddPingModal({
             <h3 className="font-bold text-lg mb-4 text-base-content">
               {editingPing ? "Edit Ping" : "Add New Ping"}
             </h3>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Title input */}
-          <div className="form-control">
-            <label className="label">
-              <span className="text-sm font-semibold text-base-content">
-                Title <span className="text-error">*</span>
-              </span>
-            </label>
-            <input
-              type="text"
-              placeholder="Enter ping title..."
-              className="input input-bordered w-full placeholder:text-base-content/50"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              autoFocus
-              required
-            />
-          </div>
-
-          {/* Column selector */}
-          <div className="form-control">
-            <label className="label">
-              <span className="text-sm font-semibold text-base-content">Column</span>
-            </label>
-            <div className="dropdown dropdown-bottom w-full">
-              <button
-                type="button"
-                tabIndex={0}
-                className="input input-bordered w-full flex justify-between items-center text-base-content cursor-pointer"
-              >
-                <span>{column}</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  className="w-4 h-4"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              <ul
-                tabIndex={0}
-                className="dropdown-content menu p-2 shadow-2xl bg-base-100 rounded-box w-full mt-2 z-10"
-              >
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => setColumn("Inbox")}
-                    className="text-base-content"
-                  >
-                    Inbox
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => setColumn("In Progress")}
-                    className="text-base-content"
-                  >
-                    In Progress
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => setColumn("Done")}
-                    className="text-base-content"
-                  >
-                    Done
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Priority selector */}
-          <div className="form-control">
-            <label className="label">
-              <span className="text-sm font-semibold text-base-content">Priority</span>
-            </label>
-            <div className="flex gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="priority"
-                  className="radio radio-sm radio-primary"
-                  checked={priority === ""}
-                  onChange={() => setPriority("")}
-                />
-                <span className="text-sm text-base-content">None</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="priority"
-                  className="radio radio-sm radio-primary"
-                  checked={priority === "low"}
-                  onChange={() => setPriority("low")}
-                />
-                <span className="text-sm text-base-content">Low</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="priority"
-                  className="radio radio-sm radio-primary"
-                  checked={priority === "medium"}
-                  onChange={() => setPriority("medium")}
-                />
-                <span className="text-sm text-base-content">Medium</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="priority"
-                  className="radio radio-sm radio-primary"
-                  checked={priority === "high"}
-                  onChange={() => setPriority("high")}
-                />
-                <span className="text-sm text-base-content">High</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="priority"
-                  className="radio radio-sm radio-primary"
-                  checked={priority === "urgent"}
-                  onChange={() => setPriority("urgent")}
-                />
-                <span className="text-sm text-base-content">Urgent</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Due date */}
-          <div className="form-control">
-            <label className="label">
-              <span className="text-sm font-semibold text-base-content">Due Date</span>
-            </label>
-            <input
-              type="date"
-              className="input input-bordered w-full"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
-          </div>
-
-          {/* Tags input */}
-          <div className="form-control">
-            <label className="label">
-              <span className="text-sm font-semibold text-base-content">Tags</span>
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Add a tag..."
-                className="input input-bordered flex-1 placeholder:text-base-content/50"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              <button
-                type="button"
-                className="btn btn-outline text-base-content"
-                onClick={handleAddTag}
-                disabled={!tagInput.trim()}
-              >
-                Add
-              </button>
-            </div>
-
-            {/* Display tags */}
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {tags.map((tag, index) => (
-                  <span key={index} className="badge badge-neutral gap-1">
-                    {tag}
-                    <button
-                      type="button"
-                      className="text-error hover:text-error-focus"
-                      onClick={() => handleRemoveTag(tag)}
-                      aria-label={`Remove ${tag} tag`}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        className="w-3 h-3"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
+            {editingPing && (
+              <div className="text-xs text-base-content/60 mb-4">
+                Created {formatCreatedAt(editingPing.createdAt)}
               </div>
             )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0 overflow-y-auto pr-1">
+            <LeftFormFields
+              title={title}
+              description={description}
+              column={column}
+              priority={priority}
+              dueDate={dueDate}
+              tagInput={tagInput}
+              selectedTags={selectedTagIds.map((id) => tagsById[id]).filter(Boolean)}
+              suggestions={dropdownSuggestions}
+              activeSuggestionIndex={activeSuggestionIndex}
+              tagError={tagError}
+              priorityError={priorityError}
+              showSuggestions={isTagDropdownOpen}
+              onTagFocus={() => setIsTagDropdownOpen(true)}
+              onTagBlur={() => {
+                window.setTimeout(() => setIsTagDropdownOpen(false), 100);
+              }}
+              onTitleChange={setTitle}
+              onDescriptionChange={setDescription}
+              onColumnChange={setColumn}
+              onPriorityChange={(value) => {
+                setPriority(value);
+                if (value) setPriorityError(undefined);
+              }}
+              onDueDateChange={setDueDate}
+              onTagInputChange={setTagInput}
+              onTagKeyDown={handleTagKeyDown}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
+              onSuggestionSelect={addTagLabel}
+            />
+            <ChecklistPanel
+              checklistInput={checklistInput}
+              checklist={checklist}
+              onChecklistInputChange={setChecklistInput}
+              onChecklistKeyDown={handleChecklistKeyDown}
+              onAddChecklistItem={handleAddChecklistItem}
+              onToggleChecklistItem={handleToggleChecklistItem}
+              onRemoveChecklistItem={handleRemoveChecklistItem}
+            />
           </div>
 
           {/* Action buttons */}
-          <div className="modal-action">
+          <div className="modal-action pt-4">
             <button
               type="button"
-              className="btn btn-ghost text-base-content"
+              className="btn btn-outline text-base-content"
               onClick={handleClose}
             >
               Cancel
@@ -346,7 +327,7 @@ export default function AddPingModal({
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={!title.trim()}
+              disabled={!title.trim() || !priority}
             >
               {editingPing ? "Save Changes" : "Add Ping"}
             </button>

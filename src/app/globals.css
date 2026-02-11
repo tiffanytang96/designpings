@@ -25,7 +25,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-poppins), "Poppins", Arial, sans-serif;
 }
 
 /* Prevent Chrome's link/globe drag cursor during card drags */
@@ -68,6 +68,25 @@ a:focus,
 .btn[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Keep ghost buttons clean on hover */
+.btn.btn-ghost:hover {
+  outline: none;
+  box-shadow: none;
+  border-color: transparent;
+  background-color: #f1f5f9;
+}
+
+/* Secondary buttons: soft fill, no outline */
+.btn.btn-outline {
+  background-color: #ffffff;
+  border-color: #d1d5db;
+  color: #2b2b2b;
+}
+.btn.btn-outline:hover {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
 }
 
 /* Make unchecked radio buttons more visible */

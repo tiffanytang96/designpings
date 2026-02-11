@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PlusIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import PingCard, { Ping } from "./PingCard";
 
@@ -11,6 +12,12 @@ interface ColumnProps {
   onEditPing: (ping: Ping) => void;
   onDeletePing: (id: string) => void;
   onMovePing: (id: string, newColumn: Ping["column"]) => void;
+  onReorderPing: (
+    id: string,
+    column: Ping["column"],
+    targetId: string,
+    position: "before" | "after"
+  ) => void;
 }
 
 export default function Column({
@@ -20,9 +27,107 @@ export default function Column({
   onEditPing,
   onDeletePing,
   onMovePing,
+  onReorderPing,
 }: ColumnProps) {
   const [isDraggedOver, setIsDraggedOver] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
+  const [dropIndicator, setDropIndicator] = useState<{
+    id: string;
+    position: "before" | "after";
+  } | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+  const dragRectRef = useRef<{ top: number; right: number; bottom: number; left: number } | null>(
+    null
+  );
+  const effectiveDragId = activeDragId ?? dragIdRef.current;
+
+  type DropPosition = "before" | "after";
+  const resetColumnDragState = () => {
+    setIsDraggedOver(false);
+    setDragCounter(0);
+    setDropIndicator(null);
+  };
+
+  const parseDragId = (dataTransfer: DataTransfer | null) => {
+    if (!dataTransfer) return null;
+    const raw = dataTransfer.getData("application/json");
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as { id?: string };
+      return parsed.id ?? null;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const getDropPosition = (e: React.DragEvent<HTMLDivElement>): DropPosition => {
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    return e.clientY > rect.top + rect.height / 2 ? "after" : "before";
+  };
+
+  const isPointerInsideDragRect = (clientX: number, clientY: number) => {
+    const dragRect = dragRectRef.current;
+    if (!dragRect) return false;
+    return (
+      clientX >= dragRect.left &&
+      clientX <= dragRect.right &&
+      clientY >= dragRect.top &&
+      clientY <= dragRect.bottom
+    );
+  };
+
+  const isNearDraggedCardCenter = (draggedId: string, clientY: number) => {
+    const draggedEl = document.querySelector<HTMLElement>(`[data-ping-id="${draggedId}"]`);
+    if (!draggedEl) return false;
+    const draggedRect = draggedEl.getBoundingClientRect();
+    const dragCenterY = draggedRect.top + draggedRect.height / 2;
+    const deadZone = draggedRect.height * 0.35;
+    return Math.abs(clientY - dragCenterY) < deadZone;
+  };
+
+  const shouldSuppressIndicator = (draggedId: string, overId: string, clientX: number, clientY: number) => {
+    if (draggedId === overId) return true;
+    if (isPointerInsideDragRect(clientX, clientY)) return true;
+    if (isNearDraggedCardCenter(draggedId, clientY)) return true;
+    return false;
+  };
+
+  useEffect(() => {
+    const handleDragStart = (event: Event) => {
+      const custom = event as CustomEvent<{ id?: string }>;
+      const id = custom.detail?.id ?? null;
+      setActiveDragId(id);
+      dragIdRef.current = id;
+    };
+    const handleDragRect = (
+      event: Event
+    ) => {
+      const custom = event as CustomEvent<{
+        id?: string;
+        rect?: { top: number; right: number; bottom: number; left: number };
+      }>;
+      if (custom.detail?.rect) {
+        dragRectRef.current = custom.detail.rect;
+      }
+    };
+    const handleDragEnd = () => {
+      setActiveDragId(null);
+      dragIdRef.current = null;
+      dragRectRef.current = null;
+      setDropIndicator(null);
+    };
+    window.addEventListener("ping-drag-start", handleDragStart as EventListener);
+    window.addEventListener("ping-drag-rect", handleDragRect as EventListener);
+    window.addEventListener("ping-drag-end", handleDragEnd as EventListener);
+    window.addEventListener("dragend", handleDragEnd);
+    return () => {
+      window.removeEventListener("ping-drag-start", handleDragStart as EventListener);
+      window.removeEventListener("ping-drag-rect", handleDragRect as EventListener);
+      window.removeEventListener("ping-drag-end", handleDragEnd as EventListener);
+      window.removeEventListener("dragend", handleDragEnd);
+    };
+  }, []);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -36,6 +141,7 @@ export default function Column({
       const newCount = prev - 1;
       if (newCount === 0) {
         setIsDraggedOver(false);
+        setDropIndicator(null);
       }
       return newCount;
     });
@@ -48,19 +154,69 @@ export default function Column({
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDraggedOver(false);
-    setDragCounter(0);
-    
+    resetColumnDragState();
+
     try {
-      const data = e.dataTransfer.getData("application/json");
-      if (data) {
-        const { id } = JSON.parse(data);
-        onMovePing(id, columnName);
-        window.dispatchEvent(new Event("ping-drag-end"));
+      const draggedId = parseDragId(e.dataTransfer);
+      if (!draggedId) return;
+      if (dropIndicator && effectiveDragId === draggedId && dropIndicator.id !== draggedId) {
+        onReorderPing(draggedId, columnName, dropIndicator.id, dropIndicator.position);
+      } else {
+        onMovePing(draggedId, columnName);
       }
+      window.dispatchEvent(new Event("ping-drag-end"));
     } catch (err) {
       console.error("Failed to parse drag data:", err);
     }
+  };
+
+  const handleItemDragOver = (e: React.DragEvent<HTMLDivElement>, overId: string) => {
+    e.preventDefault();
+    const draggedId = parseDragId(e.dataTransfer) ?? effectiveDragId;
+    if (!draggedId || draggedId === overId) {
+      setDropIndicator(null);
+      return;
+    }
+    dragIdRef.current = draggedId;
+    if (shouldSuppressIndicator(draggedId, overId, e.clientX, e.clientY)) {
+      setDropIndicator(null);
+      return;
+    }
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const distanceFromCenter = Math.abs(e.clientY - (rect.top + rect.height / 2));
+    if (distanceFromCenter < 16) {
+      setDropIndicator(null);
+      return;
+    }
+    const next = { id: overId, position: getDropPosition(e) } as const;
+    setDropIndicator((prev) => {
+      if (prev?.id === next.id && prev.position === next.position) return prev;
+      return next;
+    });
+  };
+
+  const handleItemDrop = (e: React.DragEvent<HTMLDivElement>, overId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const draggedId = parseDragId(e.dataTransfer);
+    if (!draggedId || draggedId === overId) return;
+    onReorderPing(draggedId, columnName, overId, getDropPosition(e));
+    resetColumnDragState();
+    window.dispatchEvent(new Event("ping-drag-end"));
+  };
+
+  const handlePlaceholderDrop = (
+    e: React.DragEvent<HTMLDivElement>,
+    overId: string,
+    position: DropPosition
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const draggedId = parseDragId(e.dataTransfer);
+    if (!draggedId || draggedId === overId) return;
+    onReorderPing(draggedId, columnName, overId, position);
+    resetColumnDragState();
+    window.dispatchEvent(new Event("ping-drag-end"));
   };
 
   return (
@@ -90,7 +246,7 @@ export default function Column({
           <span className="badge badge-sm badge-neutral">{pings.length}</span>
         </div>
         <button
-          className="btn btn-ghost btn-sm btn-circle text-base-content"
+          className="btn btn-ghost btn-sm text-base-content rounded-md !bg-base-200 hover:!bg-base-300 px-2 min-w-0"
           onPointerDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -98,20 +254,7 @@ export default function Column({
           }}
           aria-label={`Add ping to ${columnName}`}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            className="w-5 h-5"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
+          <PlusIcon className="w-5 h-5" />
         </button>
       </div>
 
@@ -136,12 +279,36 @@ export default function Column({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
               >
-                <PingCard
-                  ping={ping}
-                  onEdit={onEditPing}
-                  onDelete={onDeletePing}
-                  onMove={onMovePing}
-                />
+                {dropIndicator?.id === ping.id &&
+                  dropIndicator.position === "before" &&
+                  effectiveDragId !== ping.id && (
+                  <div
+                    className="h-[120px] rounded-xl border border-dashed border-primary/60 bg-primary/5 my-2"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handlePlaceholderDrop(e, ping.id, "before")}
+                  />
+                )}
+                <div
+                  onDragOver={(e) => handleItemDragOver(e, ping.id)}
+                  onDragEnter={(e) => handleItemDragOver(e, ping.id)}
+                  onDrop={(e) => handleItemDrop(e, ping.id)}
+                >
+                  <PingCard
+                    ping={ping}
+                    onEdit={onEditPing}
+                    onDelete={onDeletePing}
+                    onMove={onMovePing}
+                  />
+                </div>
+                {dropIndicator?.id === ping.id &&
+                  dropIndicator.position === "after" &&
+                  effectiveDragId !== ping.id && (
+                  <div
+                    className="h-[120px] rounded-xl border border-dashed border-primary/60 bg-primary/5 my-2"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handlePlaceholderDrop(e, ping.id, "after")}
+                  />
+                )}
               </motion.div>
             ))
           )}
