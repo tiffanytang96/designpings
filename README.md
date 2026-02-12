@@ -9,8 +9,6 @@ Design Pings combines:
 - 🗒️ A sticky notes board with optional voice-to-text dictation
 - 💾 Local persistence for board data and UI preferences
 
-![Design Pings Screenshot](public/designpings.png)
-
 ## Why This Project 🚀
 
 Design Pings is meant to feel lightweight, fast, and focused:
