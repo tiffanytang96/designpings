@@ -44,6 +44,7 @@ export default function PingCard({ ping, onEdit, onDelete }: PingCardProps) {
   const [tagsContainerWidth, setTagsContainerWidth] = useState(0);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const dragPreviewRef = useRef<HTMLDivElement | null>(null);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
   const tagsContainerRef = useRef<HTMLDivElement>(null);
@@ -141,6 +142,19 @@ export default function PingCard({ ping, onEdit, onDelete }: PingCardProps) {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (dragPreviewRef.current) {
+        dragPreviewRef.current.remove();
+        dragPreviewRef.current = null;
+      }
+      if (dragGhostRef.current) {
+        dragGhostRef.current.remove();
+        dragGhostRef.current = null;
+      }
+    };
+  }, []);
+
   // Card drag handlers
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     setIsDragging(true);
@@ -165,25 +179,40 @@ export default function PingCard({ ping, onEdit, onDelete }: PingCardProps) {
           },
         })
       );
-      const clone = cardRef.current.cloneNode(true) as HTMLDivElement;
-      clone.style.width = `${rect.width}px`;
-      clone.style.height = `${rect.height}px`;
-      clone.style.boxShadow = "0 18px 40px -8px rgba(0, 0, 0, 0.25)";
-      clone.style.transform = "rotate(-1deg)";
-      clone.style.opacity = "0.98";
-      clone.style.pointerEvents = "none";
-      clone.style.position = "fixed";
-      clone.style.top = "0";
-      clone.style.left = "0";
-      clone.style.zIndex = "9999";
-      clone.style.transform = "translate(-9999px, -9999px)";
-      document.body.appendChild(clone);
-      dragGhostRef.current = clone;
 
-      const ghostCanvas = document.createElement("canvas");
-      ghostCanvas.width = 1;
-      ghostCanvas.height = 1;
-      e.dataTransfer!.setDragImage(ghostCanvas, 0, 0);
+      const ghost = cardRef.current.cloneNode(true) as HTMLDivElement;
+      ghost.style.width = `${rect.width}px`;
+      ghost.style.height = `${rect.height}px`;
+      ghost.style.position = "fixed";
+      ghost.style.top = "0";
+      ghost.style.left = "0";
+      ghost.style.zIndex = "9999";
+      ghost.style.pointerEvents = "none";
+      ghost.style.margin = "0";
+      ghost.style.opacity = "0.5";
+      ghost.style.transform = "translate(-9999px, -9999px)";
+      ghost.style.boxShadow = "0 18px 40px -8px rgba(0, 0, 0, 0.25)";
+      document.body.appendChild(ghost);
+      dragGhostRef.current = ghost;
+
+      const preview = cardRef.current.cloneNode(true) as HTMLDivElement;
+      preview.style.width = `${rect.width}px`;
+      preview.style.height = `${rect.height}px`;
+      preview.style.position = "fixed";
+      preview.style.top = "-10000px";
+      preview.style.left = "-10000px";
+      preview.style.pointerEvents = "none";
+      preview.style.margin = "0";
+      preview.style.transform = "none";
+      preview.style.transition = "none";
+      preview.style.opacity = "1";
+      document.body.appendChild(preview);
+      dragPreviewRef.current = preview;
+      e.dataTransfer!.setDragImage(
+        preview,
+        e.clientX - rect.left,
+        e.clientY - rect.top
+      );
     }
   };
 
@@ -192,6 +221,10 @@ export default function PingCard({ ping, onEdit, onDelete }: PingCardProps) {
     document.body.classList.remove("dragging");
     document.documentElement.classList.remove("dragging");
     dragOffsetRef.current = null;
+    if (dragPreviewRef.current) {
+      dragPreviewRef.current.remove();
+      dragPreviewRef.current = null;
+    }
     if (dragGhostRef.current) {
       dragGhostRef.current.remove();
       dragGhostRef.current = null;
@@ -207,31 +240,29 @@ export default function PingCard({ ping, onEdit, onDelete }: PingCardProps) {
       const y = event.clientY - offset.y;
       dragGhostRef.current.style.transform = `translate(${x}px, ${y}px)`;
     };
-    const forceCursor = () => {
-      document.body.style.cursor = "grabbing";
-    };
     const clearGhost = () => {
-      document.body.style.cursor = "";
       if (dragGhostRef.current) {
         dragGhostRef.current.remove();
         dragGhostRef.current = null;
       }
-      setIsDragging(false);
+      if (dragPreviewRef.current) {
+        dragPreviewRef.current.remove();
+        dragPreviewRef.current = null;
+      }
       document.body.classList.remove("dragging");
       document.documentElement.classList.remove("dragging");
+      dragOffsetRef.current = null;
+      setIsDragging(false);
     };
     window.addEventListener("dragover", handleDragOver);
-    window.addEventListener("dragstart", forceCursor);
     window.addEventListener("drop", clearGhost);
     window.addEventListener("dragend", clearGhost);
     window.addEventListener("ping-drag-end", clearGhost as EventListener);
     return () => {
       window.removeEventListener("dragover", handleDragOver);
-      window.removeEventListener("dragstart", forceCursor);
       window.removeEventListener("drop", clearGhost);
       window.removeEventListener("dragend", clearGhost);
       window.removeEventListener("ping-drag-end", clearGhost as EventListener);
-      document.body.style.cursor = "";
     };
   }, [isDragging]);
 

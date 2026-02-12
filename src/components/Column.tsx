@@ -174,6 +174,7 @@ export default function Column({
   // Item-level drag handlers
   const handleItemDragOver = (e: React.DragEvent<HTMLDivElement>, overId: string) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
     const draggedId = parseDragId(e.dataTransfer) ?? effectiveDragId;
     if (!draggedId || draggedId === overId) {
       setDropIndicator(null);

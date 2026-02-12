@@ -122,6 +122,9 @@ export default function Home() {
     if (!hasHydrated) return;
     if (pings.length > 0 || Object.keys(tagsById).length > 0) return;
     try {
+      const persistedBoard = localStorage.getItem("pingboard:data");
+      if (persistedBoard) return;
+
       const legacyPingsRaw = localStorage.getItem("design-pings");
       const legacyTagsRaw = localStorage.getItem("design-pings-tags");
       const legacyPings = legacyPingsRaw ? (JSON.parse(legacyPingsRaw) as LegacyPing[]) : [];

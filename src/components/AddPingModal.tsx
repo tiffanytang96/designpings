@@ -209,7 +209,7 @@ export default function AddPingModal({
 
   const handleClose = () => {
     setTitle("");
-    setColumn("Inbox");
+    setColumn(defaultColumn);
     setPriority("low");
     setTagInput("");
     setSelectedTagIds([]);
