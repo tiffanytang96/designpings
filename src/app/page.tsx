@@ -63,7 +63,7 @@ const DEFAULT_PINGS: LegacyPing[] = [
 const DEFAULT_UI_PREFS = {
   focusMode: false,
   isTopBarHidden: false,
-  isStickyDrawerOpen: true,
+  isStickyDrawerOpen: false,
 };
 
 const getStoredUiPrefs = () => {
@@ -85,7 +85,7 @@ const getStoredUiPrefs = () => {
       isStickyDrawerOpen:
         typeof parsed.isStickyDrawerOpen === "boolean"
           ? parsed.isStickyDrawerOpen
-          : true,
+          : false,
     };
   } catch {
     return DEFAULT_UI_PREFS;
