@@ -58,24 +58,35 @@ const DEFAULT_PINGS: LegacyPing[] = [
   },
 ];
 
-const getInitialUiPrefs = () => {
+const DEFAULT_UI_PREFS = {
+  focusMode: false,
+  isTopBarHidden: false,
+  isStickyDrawerOpen: true,
+};
+
+const getStoredUiPrefs = () => {
   if (typeof window === "undefined") {
-    return { focusMode: false, isTopBarHidden: false };
+    return DEFAULT_UI_PREFS;
   }
   try {
     const stored = localStorage.getItem("pingboard:ui");
-    if (!stored) return { focusMode: false, isTopBarHidden: false };
+    if (!stored) return DEFAULT_UI_PREFS;
     const parsed = JSON.parse(stored) as {
       focusMode?: boolean;
       isTopBarHidden?: boolean;
+      isStickyDrawerOpen?: boolean;
     };
     return {
       focusMode: typeof parsed.focusMode === "boolean" ? parsed.focusMode : false,
       isTopBarHidden:
         typeof parsed.isTopBarHidden === "boolean" ? parsed.isTopBarHidden : false,
+      isStickyDrawerOpen:
+        typeof parsed.isStickyDrawerOpen === "boolean"
+          ? parsed.isStickyDrawerOpen
+          : true,
     };
   } catch {
-    return { focusMode: false, isTopBarHidden: false };
+    return DEFAULT_UI_PREFS;
   }
 };
 
@@ -92,10 +103,12 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPing, setEditingPing] = useState<Ping | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [focusMode, setFocusMode] = useState(() => getInitialUiPrefs().focusMode);
-  const [isTopBarHidden, setIsTopBarHidden] = useState(
-    () => getInitialUiPrefs().isTopBarHidden
+  const [focusMode, setFocusMode] = useState(DEFAULT_UI_PREFS.focusMode);
+  const [isTopBarHidden, setIsTopBarHidden] = useState(DEFAULT_UI_PREFS.isTopBarHidden);
+  const [isStickyDrawerOpen, setIsStickyDrawerOpen] = useState(
+    DEFAULT_UI_PREFS.isStickyDrawerOpen
   );
+  const [hasLoadedUiPrefs, setHasLoadedUiPrefs] = useState(false);
   const [isTopBarHover, setIsTopBarHover] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(
     useBoardStore.persist.hasHydrated()
@@ -104,16 +117,27 @@ export default function Home() {
   const [isTagEditOpen, setIsTagEditOpen] = useState(false);
   const [isClearDoneOpen, setIsClearDoneOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: "added" | "deleted" } | null>(null);
-  const [isStickyDrawerOpen, setIsStickyDrawerOpen] = useState(true);
   const [isStickyTooltipVisible, setIsStickyTooltipVisible] = useState(false);
   const stickyDrawerTransition = { type: "spring", stiffness: 340, damping: 32 } as const;
   const isClient = typeof window !== "undefined";
+  const effectiveStickyDrawerOpen = hasLoadedUiPrefs ? isStickyDrawerOpen : false;
 
   useEffect(() => {
     const unsubscribe = useBoardStore.persist.onFinishHydration(() => {
       setHasHydrated(true);
     });
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const prefs = getStoredUiPrefs();
+    const frame = window.requestAnimationFrame(() => {
+      setFocusMode(prefs.focusMode);
+      setIsTopBarHidden(prefs.isTopBarHidden);
+      setIsStickyDrawerOpen(prefs.isStickyDrawerOpen);
+      setHasLoadedUiPrefs(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
 
@@ -141,15 +165,16 @@ export default function Home() {
 
   // Persist UI preferences
   useEffect(() => {
+    if (!hasLoadedUiPrefs) return;
     try {
       localStorage.setItem(
         "pingboard:ui",
-        JSON.stringify({ focusMode, isTopBarHidden })
+        JSON.stringify({ focusMode, isTopBarHidden, isStickyDrawerOpen })
       );
     } catch (error) {
       console.error("Failed to save UI prefs:", error);
     }
-  }, [focusMode, isTopBarHidden]);
+  }, [focusMode, hasLoadedUiPrefs, isStickyDrawerOpen, isTopBarHidden]);
 
   // CRUD Functions
   function handleAddPing(column?: Ping["column"]) {
@@ -290,7 +315,7 @@ export default function Home() {
       <section className="relative flex-1 overflow-hidden p-6">
         <div
           className={`h-full overflow-x-auto overflow-y-hidden transition-[padding] duration-300 ${
-            isStickyDrawerOpen ? "pr-[520px]" : "pr-16"
+            effectiveStickyDrawerOpen ? "pr-[520px]" : "pr-16"
           }`}
         >
           <div className="flex gap-6 h-full min-w-max pr-4">
@@ -327,12 +352,14 @@ export default function Home() {
         </div>
 
         <motion.aside
-          className="absolute right-0 top-0 z-20 h-full w-full max-w-[500px] rounded-l-2xl border-l border-base-300 bg-base-100 p-4 shadow-lg"
+          className={`absolute right-0 top-0 z-20 h-full w-full max-w-[500px] rounded-l-2xl border-l border-base-300 bg-base-100 p-4 shadow-lg ${
+            hasLoadedUiPrefs ? "" : "pointer-events-none opacity-0"
+          }`}
           initial={false}
-          animate={{ x: isStickyDrawerOpen ? 0 : "100%" }}
+          animate={{ x: effectiveStickyDrawerOpen ? 0 : "100%" }}
           transition={stickyDrawerTransition}
           onAnimationComplete={() => {
-            setIsStickyTooltipVisible(!isStickyDrawerOpen);
+            setIsStickyTooltipVisible(!effectiveStickyDrawerOpen);
           }}
         >
           <div
@@ -348,9 +375,9 @@ export default function Home() {
                 setIsStickyDrawerOpen((prev) => !prev);
               }}
               className="btn btn-square btn-sm border border-base-300 bg-base-100 no-focus-ring"
-              aria-label={isStickyDrawerOpen ? "Collapse sticky notes drawer" : "Open sticky notes drawer"}
+              aria-label={effectiveStickyDrawerOpen ? "Collapse sticky notes drawer" : "Open sticky notes drawer"}
             >
-              {isStickyDrawerOpen ? (
+              {effectiveStickyDrawerOpen ? (
                 <ChevronRightIcon className="h-4 w-4" />
               ) : (
                 <ChevronLeftIcon className="h-4 w-4" />

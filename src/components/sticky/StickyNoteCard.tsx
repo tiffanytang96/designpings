@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { motion } from "framer-motion";
-import { TrashIcon } from "@heroicons/react/24/outline";
+import { MicrophoneIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { GripVertical } from "lucide-react";
 import type { StickyNote } from "@/stores/stickyStore";
+import useSpeechRecognition from "@/hooks/useSpeechRecognition";
 
 interface StickyNoteCardProps {
   note: StickyNote;
@@ -33,6 +34,37 @@ export default function StickyNoteCard({
   // Color menu state
   const [showColors, setShowColors] = useState(false);
   const colorPickerRef = useRef<HTMLDivElement | null>(null);
+  const latestTextRef = useRef(note.text);
+
+  useEffect(() => {
+    latestTextRef.current = note.text;
+  }, [note.text]);
+
+  const appendTranscript = useCallback(
+    (spokenText: string) => {
+      const trimmed = spokenText.trim();
+      if (!trimmed) return;
+      const current = latestTextRef.current;
+      const separator = current.length > 0 && !/[\s\n]$/.test(current) ? " " : "";
+      onChange(note.id, { text: `${current}${separator}${trimmed}` });
+    },
+    [note.id, onChange]
+  );
+
+  const {
+    isSupported,
+    isListening,
+    error: voiceError,
+    startListening,
+    stopListening,
+    clearError,
+  } = useSpeechRecognition({ onTranscript: appendTranscript });
+
+  const micTooltip = !isSupported
+    ? "Voice input not supported in this browser"
+    : isListening
+    ? "Listening..."
+    : "Click to dictate";
 
   // Runtime drag transform
   const style = useMemo(() => {
@@ -56,6 +88,16 @@ export default function StickyNoteCard({
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [showColors]);
 
+  const handleMicClick = () => {
+    clearError();
+    if (!isSupported) return;
+    if (isListening) {
+      stopListening();
+      return;
+    }
+    startListening();
+  };
+
   return (
     // Note shell
     <motion.div
@@ -68,19 +110,32 @@ export default function StickyNoteCard({
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
     >
       <motion.div
-        className={`h-full w-full rounded-xl border border-base-300 shadow-xs overflow-visible ${
+        className={`relative h-full w-full rounded-xl border border-base-300 shadow-xs overflow-visible ${
+          isListening ? "ring-2 ring-sky-400/70 ring-offset-1 ring-offset-transparent" : ""
+        } ${
           hidden ? "opacity-0 pointer-events-none" : ""
         }`}
         style={{ backgroundColor: note.color }}
         animate={{
           boxShadow: isDragging
             ? "0 14px 28px rgba(0, 0, 0, 0.08)"
+            : isListening
+            ? "0 0 0 2px rgba(56, 189, 248, 0.20), 0 8px 16px rgba(0, 0, 0, 0.10)"
             : "0 4px 10px rgba(0, 0, 0, 0.08)",
           scale: isDragging ? 1.02 : 1,
           rotate: isDragging ? 1.5 : 0,
         }}
         transition={{ duration: 0.15 }}
       >
+        {isListening ? (
+          <motion.div
+            className="pointer-events-none absolute -inset-1 rounded-2xl border border-sky-400/70"
+            initial={false}
+            animate={{ opacity: [0.45, 0.9, 0.45], scale: [1, 1.02, 1] }}
+            transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+          />
+        ) : null}
+
         {/* Note header actions */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-black/5">
           <button
@@ -95,6 +150,41 @@ export default function StickyNoteCard({
             <GripVertical className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-1">
+            <div className="tooltip tooltip-bottom" data-tip={micTooltip}>
+              <button
+                type="button"
+                className={`btn btn-ghost btn-xs btn-square rounded-md ${
+                  isListening
+                    ? "text-sky-600 bg-sky-500/10 border border-sky-400/50"
+                    : "text-base-content/60 hover:text-base-content"
+                }`}
+                onClick={handleMicClick}
+                onPointerDown={(event) => event.stopPropagation()}
+                disabled={!isSupported}
+                aria-label={isListening ? "Stop dictation" : "Start dictation"}
+              >
+                {isListening ? (
+                  <span className="inline-flex items-end gap-0.5" aria-hidden="true">
+                    {[0, 1, 2].map((index) => (
+                      <motion.span
+                        key={index}
+                        className="w-0.5 rounded-full bg-sky-600/80"
+                        animate={{ height: [4, 9, 4] }}
+                        transition={{
+                          duration: 0.7,
+                          repeat: Number.POSITIVE_INFINITY,
+                          ease: "easeInOut",
+                          delay: index * 0.1,
+                        }}
+                        style={{ height: 4 }}
+                      />
+                    ))}
+                  </span>
+                ) : (
+                  <MicrophoneIcon className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             <div className="relative" ref={colorPickerRef}>
               <button
                 type="button"
@@ -137,12 +227,20 @@ export default function StickyNoteCard({
           </div>
         </div>
         {/* Note body */}
-        <textarea
-          className="h-[calc(100%-40px)] w-full resize-none bg-transparent p-3 text-sm text-base-content/80 outline-none"
-          placeholder="Write a note..."
-          value={note.text}
-          onChange={(event) => onChange(note.id, { text: event.target.value })}
-        />
+        <div className="h-[calc(100%-40px)] w-full flex flex-col">
+          {voiceError ? (
+            <div className="px-3 pt-2 text-[11px] leading-4 text-error">{voiceError}</div>
+          ) : null}
+          <textarea
+            className="flex-1 w-full resize-none bg-transparent p-3 text-sm text-base-content/80 outline-none"
+            placeholder="Write a note..."
+            value={note.text}
+            onChange={(event) => {
+              clearError();
+              onChange(note.id, { text: event.target.value });
+            }}
+          />
+        </div>
       </motion.div>
     </motion.div>
   );
