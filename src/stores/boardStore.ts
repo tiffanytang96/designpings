@@ -307,7 +307,7 @@ export const useBoardStore = create<BoardState>()(
           const nextTagIds: string[] = [];
           legacyTagLabels.forEach((label) => {
             const normalized = normalizeLabel(label);
-            let tagId = get().tagLabelIndex[normalized];
+            let tagId: string | undefined = get().tagLabelIndex[normalized];
             if (!tagId) {
               const created = get().createOrReuseTag(label);
               tagId = created.tag?.id;
