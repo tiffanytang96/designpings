@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import {
+  ChatBubbleBottomCenterTextIcon,
   CheckCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   MinusCircleIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
 import TopBar from "@/components/TopBar";
 import Column from "@/components/Column";
@@ -114,6 +116,7 @@ export default function Home() {
     useBoardStore.persist.hasHydrated()
   );
   const [defaultColumn, setDefaultColumn] = useState<Ping["column"]>("Inbox");
+  const [mobileColumnView, setMobileColumnView] = useState<Ping["column"]>("Inbox");
   const [isTagEditOpen, setIsTagEditOpen] = useState(false);
   const [isClearDoneOpen, setIsClearDoneOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: "added" | "deleted" } | null>(null);
@@ -263,8 +266,17 @@ export default function Home() {
   // Group pings by column
   const getPingsByColumn = (column: Ping["column"]) =>
     filteredPings.filter((p) => p.column === column);
+  const visibleColumns: Ping["column"][] = focusMode
+    ? ["Inbox", "In Progress"]
+    : ["Inbox", "In Progress", "Done"];
+  const effectiveMobileColumnView = visibleColumns.includes(mobileColumnView)
+    ? mobileColumnView
+    : visibleColumns[0];
 
   const doneCount = pings.filter((ping) => ping.column === "Done").length;
+  const desktopColumnTransition = { type: "spring", stiffness: 280, damping: 30 } as const;
+  const focusColumnWidth = 460;
+  const defaultColumnWidth = 360;
 
   return (
     <main className="h-screen bg-base-200 flex flex-col">
@@ -272,8 +284,10 @@ export default function Home() {
       {/* Top hover reveal zone */}
       {isTopBarHidden && (
         <div
-          className="fixed top-0 left-0 right-0 h-2 z-50"
+          className="fixed top-0 left-0 right-0 h-8 md:h-2 z-50"
           onMouseEnter={() => setIsTopBarHover(true)}
+          onTouchStart={() => setIsTopBarHover(true)}
+          onClick={() => setIsTopBarHover(true)}
         />
       )}
 
@@ -312,42 +326,106 @@ export default function Home() {
       </AnimatePresence>
 
       {/* Board - Horizontal scrollable columns */}
-      <section className="relative flex-1 overflow-hidden p-6">
+      <section className="relative flex-1 overflow-hidden p-4 md:p-6 pb-24 md:pb-6">
+        <div className="mb-3 md:hidden">
+          <label className="label pb-1">
+            <span className="label-text text-xs font-semibold uppercase tracking-wide text-base-content/70">
+              Column View
+            </span>
+          </label>
+          <select
+            className="select select-bordered w-full"
+            value={effectiveMobileColumnView}
+            onChange={(event) =>
+              setMobileColumnView(event.target.value as Ping["column"])
+            }
+            aria-label="Select column to view"
+          >
+            {visibleColumns.map((column) => (
+              <option key={column} value={column}>
+                {column}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div
-          className={`h-full overflow-x-auto overflow-y-hidden transition-[padding] duration-300 ${
-            effectiveStickyDrawerOpen ? "pr-[520px]" : "pr-16"
+          className={`h-full overflow-x-auto overflow-y-hidden pr-0 transition-[padding] duration-300 ${
+            effectiveStickyDrawerOpen ? "md:pr-[520px]" : "md:pr-16"
           }`}
         >
           <div className="flex gap-6 h-full min-w-max pr-4">
-            <Column
-              columnName="Inbox"
-              pings={getPingsByColumn("Inbox")}
-              onAddPing={handleAddPing}
-              onEditPing={handleEditPing}
-              onDeletePing={handleDeletePing}
-              onMovePing={handleMovePing}
-              onReorderPing={handleReorderPing}
-            />
-            <Column
-              columnName="In Progress"
-              pings={getPingsByColumn("In Progress")}
-              onAddPing={handleAddPing}
-              onEditPing={handleEditPing}
-              onDeletePing={handleDeletePing}
-              onMovePing={handleMovePing}
-              onReorderPing={handleReorderPing}
-            />
-            {!focusMode && (
+            <div className="w-full md:hidden">
               <Column
-                columnName="Done"
-                pings={getPingsByColumn("Done")}
+                columnName={effectiveMobileColumnView}
+                pings={getPingsByColumn(effectiveMobileColumnView)}
                 onAddPing={handleAddPing}
                 onEditPing={handleEditPing}
                 onDeletePing={handleDeletePing}
                 onMovePing={handleMovePing}
                 onReorderPing={handleReorderPing}
               />
-            )}
+            </div>
+
+            <div className="hidden md:flex gap-6 h-full">
+              <motion.div
+                layout
+                initial={false}
+                animate={{ width: focusMode ? focusColumnWidth : defaultColumnWidth }}
+                transition={desktopColumnTransition}
+                className="h-full"
+              >
+                <Column
+                  columnName="Inbox"
+                  pings={getPingsByColumn("Inbox")}
+                  onAddPing={handleAddPing}
+                  onEditPing={handleEditPing}
+                  onDeletePing={handleDeletePing}
+                  onMovePing={handleMovePing}
+                  onReorderPing={handleReorderPing}
+                />
+              </motion.div>
+              <motion.div
+                layout
+                initial={false}
+                animate={{ width: focusMode ? focusColumnWidth : defaultColumnWidth }}
+                transition={desktopColumnTransition}
+                className="h-full"
+              >
+                <Column
+                  columnName="In Progress"
+                  pings={getPingsByColumn("In Progress")}
+                  onAddPing={handleAddPing}
+                  onEditPing={handleEditPing}
+                  onDeletePing={handleDeletePing}
+                  onMovePing={handleMovePing}
+                  onReorderPing={handleReorderPing}
+                />
+              </motion.div>
+              <AnimatePresence initial={false}>
+                {!focusMode && (
+                  <motion.div
+                    key="done-column"
+                    layout
+                    initial={{ opacity: 0, x: 24, scale: 0.98 }}
+                    animate={{ opacity: 1, x: 0, scale: 1, width: defaultColumnWidth }}
+                    exit={{ opacity: 0, x: 24, scale: 0.98, width: 0, marginRight: 0 }}
+                    transition={desktopColumnTransition}
+                    className="h-full overflow-hidden"
+                  >
+                    <Column
+                      columnName="Done"
+                      pings={getPingsByColumn("Done")}
+                      onAddPing={handleAddPing}
+                      onEditPing={handleEditPing}
+                      onDeletePing={handleDeletePing}
+                      onMovePing={handleMovePing}
+                      onReorderPing={handleReorderPing}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -363,7 +441,7 @@ export default function Home() {
           }}
         >
           <div
-            className={`absolute right-[calc(100%+0.2rem)] top-5 z-30 -translate-y-1/2 ${
+            className={`hidden md:block absolute right-[calc(100%+0.2rem)] top-5 z-30 -translate-y-1/2 ${
               isStickyTooltipVisible ? "tooltip tooltip-left" : ""
             }`}
             data-tip={isStickyTooltipVisible ? "Open sticky notes" : undefined}
@@ -387,6 +465,34 @@ export default function Home() {
           <StickyNotesBoard />
         </motion.aside>
       </section>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-base-300 bg-base-100/95 px-3 pt-2 pb-[max(env(safe-area-inset-bottom),0.6rem)] backdrop-blur md:hidden">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className="btn btn-primary h-11 min-h-11 rounded-lg"
+            onClick={() => handleAddPing()}
+            aria-label="Add ping"
+          >
+            <PlusIcon className="h-5 w-5" />
+            Add Ping
+          </button>
+          <button
+            type="button"
+            className={`btn h-11 min-h-11 rounded-lg ${
+              effectiveStickyDrawerOpen ? "btn-neutral" : "btn-outline text-base-content"
+            }`}
+            onClick={() => {
+              setIsStickyTooltipVisible(false);
+              setIsStickyDrawerOpen((prev) => !prev);
+            }}
+            aria-label={effectiveStickyDrawerOpen ? "Hide sticky notes" : "Show sticky notes"}
+          >
+            <ChatBubbleBottomCenterTextIcon className="h-5 w-5" />
+            Notes
+          </button>
+        </div>
+      </div>
 
       {/* Add/Edit Ping Modal */}
       {isModalOpen && (

@@ -36,7 +36,9 @@ export default function TopBar({
   onClearDone,
 }: TopBarProps) {
   // Menu state
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number } | null>(null);
@@ -44,17 +46,17 @@ export default function TopBar({
 
   // Position menu near trigger
   useLayoutEffect(() => {
-    if (!menuOpen || !menuButtonRef.current) return;
+    if (!desktopMenuOpen || !menuButtonRef.current) return;
     const rect = menuButtonRef.current.getBoundingClientRect();
     setMenuStyle({
       top: rect.bottom + 8,
       left: rect.right,
     });
-  }, [menuOpen]);
+  }, [desktopMenuOpen]);
 
   // Keep menu within viewport
   useLayoutEffect(() => {
-    if (!menuOpen || !menuButtonRef.current || !menuRef.current) return;
+    if (!desktopMenuOpen || !menuButtonRef.current || !menuRef.current) return;
     const rect = menuButtonRef.current.getBoundingClientRect();
     const menuRect = menuRef.current.getBoundingClientRect();
     const padding = 8;
@@ -70,19 +72,22 @@ export default function TopBar({
       }
       return prev;
     });
-  }, [menuOpen, menuStyle]);
+  }, [desktopMenuOpen, menuStyle]);
 
   // Close menu on outside click / Escape
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!desktopMenuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (menuButtonRef.current?.contains(target)) return;
       if (menuRef.current?.contains(target)) return;
-      setMenuOpen(false);
+      setDesktopMenuOpen(false);
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
+      if (e.key !== "Escape") return;
+      setDesktopMenuOpen(false);
+      setMobileMenuOpen(false);
+      setIsMobileSearchOpen(false);
     };
     window.addEventListener("mousedown", handleClickOutside);
     window.addEventListener("keydown", handleKey);
@@ -90,12 +95,91 @@ export default function TopBar({
       window.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("keydown", handleKey);
     };
-  }, [menuOpen]);
+  }, [desktopMenuOpen]);
 
   return (
     // Top navigation layout
-    <div className="bg-base-100 border-b border-base-300 pl-8 pr-3 py-4">
-      <div className="flex items-center justify-between gap-6 mx-auto">
+    <div className="bg-base-100 border-b border-base-300 px-3 py-2 md:pl-8 md:pr-3 md:py-4">
+      <div className="md:hidden">
+        <div className="h-14 flex items-center justify-between gap-3">
+          <div className="flex items-center flex-shrink-0">
+            <div className="relative inline-flex items-start">
+              <h1 className="text-[1.25rem] leading-none font-extrabold tracking-tight text-base-content">
+                Design Pings
+              </h1>
+              <span
+                className="absolute -right-4 top-0 h-2.5 w-2.5 rounded-full"
+                style={{
+                  background:
+                    "radial-gradient(circle at 30% 30%, #fde68a 0%, #f59e0b 65%, #d97706 100%)",
+                }}
+                aria-hidden="true"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={`btn btn-ghost btn-square h-11 min-h-11 w-11 rounded-md ${
+                isMobileSearchOpen || searchQuery ? "text-primary" : "text-base-content"
+              }`}
+              onClick={() => setIsMobileSearchOpen((prev) => !prev)}
+              aria-label={isMobileSearchOpen ? "Hide search" : "Show search"}
+            >
+              <MagnifyingGlassIcon className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-square h-11 min-h-11 w-11 text-base-content rounded-md"
+              aria-label="Open menu"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <EllipsisVerticalIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <AnimatePresence initial={false}>
+          {(isMobileSearchOpen || Boolean(searchQuery)) && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="pb-2"
+            >
+              <div className="join w-full">
+                <label
+                  className={`input input-bordered join-item h-11 min-h-11 flex items-center gap-2 w-full focus-within:outline-none focus-within:ring-2 focus-within:ring-[#fed7aa] rounded-l-xl ${
+                    searchQuery ? "rounded-r-none" : "rounded-r-xl"
+                  }`}
+                >
+                  <MagnifyingGlassIcon className="w-5 h-5 opacity-70" />
+                  <input
+                    type="text"
+                    placeholder="Search pings..."
+                    className="grow bg-transparent border-none outline-none focus:outline-none focus-visible:outline-none focus:ring-0 !outline-none !outline-offset-0 placeholder:text-base-content/50"
+                    value={searchQuery}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                  />
+                </label>
+                {searchQuery && (
+                  <button
+                    className="btn btn-ghost join-item h-11 min-h-11 text-base-content border border-base-300 border-l-0 rounded-l-none rounded-r-xl"
+                    onClick={() => onSearchChange("")}
+                    aria-label="Clear search"
+                  >
+                    <XMarkIcon className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="hidden md:flex items-center justify-between gap-6 mx-auto">
         {/* Left: App Name/Logo */}
         <div className="flex items-center flex-shrink-0">
           <div className="relative inline-flex items-start">
@@ -167,14 +251,14 @@ export default function TopBar({
               ref={menuButtonRef}
               className="btn btn-ghost btn-square text-base-content rounded-md"
               aria-label="Settings"
-              onClick={() => setMenuOpen((prev) => !prev)}
+              onClick={() => setDesktopMenuOpen((prev) => !prev)}
             >
               <EllipsisVerticalIcon className="w-5 h-5" />
             </button>
             {isClient &&
               createPortal(
                 <AnimatePresence>
-                  {menuOpen && menuStyle && (
+                  {desktopMenuOpen && menuStyle && (
                     <motion.div
                       ref={menuRef}
                       className="fixed z-[2000] w-56 rounded-box bg-base-100 shadow-2xl border border-base-300 origin-top-right"
@@ -191,7 +275,7 @@ export default function TopBar({
                             className="text-base-content flex items-center gap-2 w-full"
                             onClick={() => {
                               onToggleFocusMode();
-                              setMenuOpen(false);
+                              setDesktopMenuOpen(false);
                             }}
                           >
                             <SparklesIcon className="w-4 h-4" />
@@ -222,7 +306,7 @@ export default function TopBar({
                             className="text-base-content flex items-center gap-2 w-full"
                             onClick={() => {
                               onOpenTagEditor();
-                              setMenuOpen(false);
+                              setDesktopMenuOpen(false);
                             }}
                           >
                             <TagIcon className="w-4 h-4" />
@@ -235,7 +319,7 @@ export default function TopBar({
                             className="text-base-content flex items-center gap-2 w-full"
                             onClick={() => {
                               onClearDone();
-                              setMenuOpen(false);
+                              setDesktopMenuOpen(false);
                             }}
                           >
                             <TrashIcon className="w-4 h-4" />
@@ -251,6 +335,63 @@ export default function TopBar({
           </div>
         </div>
       </div>
+
+      {isClient &&
+        createPortal(
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <div className="fixed inset-0 z-[2200] md:hidden">
+                <motion.button
+                  type="button"
+                  className="absolute inset-0 bg-black/35"
+                  aria-label="Close menu"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setMobileMenuOpen(false)}
+                />
+                <motion.div
+                  className="absolute inset-x-0 bottom-0 rounded-t-2xl border border-base-300 bg-base-100 p-3 shadow-2xl"
+                  initial={{ y: "100%", opacity: 0.9 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: "100%", opacity: 0.9 }}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
+                >
+                  <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-base-300" />
+                  <ul className="menu p-1 w-full">
+                    <li>
+                      <button
+                        type="button"
+                        className="h-11 text-base-content flex items-center gap-2 w-full"
+                        onClick={() => {
+                          onOpenTagEditor();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <TagIcon className="w-4 h-4" />
+                        Edit Tags
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        className="h-11 text-base-content flex items-center gap-2 w-full"
+                        onClick={() => {
+                          onClearDone();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                        Clear All Done
+                      </button>
+                    </li>
+                  </ul>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
     </div>
   );
 }

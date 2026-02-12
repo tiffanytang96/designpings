@@ -14,6 +14,8 @@ interface StickyNoteCardProps {
   onDelete: (id: string) => void;
   colors: string[];
   hidden?: boolean;
+  layoutMode?: "canvas" | "list";
+  draggableEnabled?: boolean;
 }
 
 const NOTE_WIDTH = 200;
@@ -25,6 +27,8 @@ export default function StickyNoteCard({
   onDelete,
   colors,
   hidden = false,
+  layoutMode = "canvas",
+  draggableEnabled = true,
 }: StickyNoteCardProps) {
   // Drag behavior
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -68,13 +72,14 @@ export default function StickyNoteCard({
 
   // Runtime drag transform
   const style = useMemo(() => {
+    if (layoutMode === "list") return {} as React.CSSProperties;
     const translate = transform
       ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
       : undefined;
     return {
       transform: translate,
     } as React.CSSProperties;
-  }, [transform]);
+  }, [layoutMode, transform]);
 
   // Close color menu when clicking outside the picker
   useEffect(() => {
@@ -102,15 +107,21 @@ export default function StickyNoteCard({
     // Note shell
     <motion.div
       ref={setNodeRef}
-      className="absolute"
-      style={{ left: note.x, top: note.y, width: NOTE_WIDTH, height: NOTE_HEIGHT, ...style }}
+      className={layoutMode === "canvas" ? "absolute" : "w-full"}
+      style={
+        layoutMode === "canvas"
+          ? { left: note.x, top: note.y, width: NOTE_WIDTH, height: NOTE_HEIGHT, ...style }
+          : { width: "100%" }
+      }
       initial={{ scale: 0.96, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0.9, opacity: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 20 }}
     >
       <motion.div
-        className={`relative h-full w-full rounded-xl border border-base-300 shadow-xs overflow-visible ${
+        className={`relative w-full rounded-xl border border-base-300 shadow-xs overflow-visible ${
+          layoutMode === "canvas" ? "h-full" : "min-h-[168px]"
+        } ${
           isListening ? "ring-2 ring-sky-400/70 ring-offset-1 ring-offset-transparent" : ""
         } ${
           hidden ? "opacity-0 pointer-events-none" : ""
@@ -138,17 +149,21 @@ export default function StickyNoteCard({
 
         {/* Note header actions */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-black/5">
-          <button
-            type="button"
-            className={`btn btn-ghost btn-xs btn-square rounded-md text-base-content/60 hover:text-base-content cursor-grab active:cursor-grabbing ${
-              isDragging ? "text-base-content" : ""
-            }`}
-            {...listeners}
-            {...attributes}
-            aria-label="Drag note"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
+          {draggableEnabled ? (
+            <button
+              type="button"
+              className={`btn btn-ghost btn-xs btn-square rounded-md text-base-content/60 hover:text-base-content cursor-grab active:cursor-grabbing ${
+                isDragging ? "text-base-content" : ""
+              }`}
+              {...listeners}
+              {...attributes}
+              aria-label="Drag note"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          ) : (
+            <span className="w-7 h-7" aria-hidden="true" />
+          )}
           <div className="flex items-center gap-1">
             <div className="tooltip tooltip-bottom" data-tip={micTooltip}>
               <button
@@ -227,12 +242,16 @@ export default function StickyNoteCard({
           </div>
         </div>
         {/* Note body */}
-        <div className="h-[calc(100%-40px)] w-full flex flex-col">
+        <div
+          className={`w-full flex flex-col ${
+            layoutMode === "canvas" ? "h-[calc(100%-40px)]" : "min-h-[128px]"
+          }`}
+        >
           {voiceError ? (
             <div className="px-3 pt-2 text-[11px] leading-4 text-error">{voiceError}</div>
           ) : null}
           <textarea
-            className="flex-1 w-full resize-none bg-transparent p-3 text-sm text-base-content/80 outline-none"
+            className="flex-1 w-full min-h-[96px] resize-none bg-transparent p-3 text-sm text-base-content/80 outline-none"
             placeholder="Write a note..."
             value={note.text}
             onChange={(event) => {

@@ -269,6 +269,7 @@ export default function PingCard({ ping, onEdit, onDelete }: PingCardProps) {
   return (
     // Card layout
     <div
+      className="w-full"
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -276,7 +277,7 @@ export default function PingCard({ ping, onEdit, onDelete }: PingCardProps) {
       <motion.div
         ref={cardRef}
         data-ping-id={ping.id}
-        className="card bg-base-100 shadow-sm cursor-grab active:cursor-grabbing flex flex-row overflow-visible min-h-[140px]"
+        className="card w-full min-h-[140px] cursor-grab active:cursor-grabbing flex flex-row overflow-visible bg-base-100 shadow-sm"
         onClick={() => onEdit(ping)}
         whileHover={{
           scale: 1.02,

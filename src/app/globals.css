@@ -135,14 +135,6 @@ select option {
   background-color: #ffffff;
 }
 
-/* Add shadow to select when focused/active for more depth */
-select:focus,
-select:active,
-.select:focus,
-.select:active {
-  box-shadow: 0 10px 40px -3px rgba(0, 0, 0, 0.3), 0 4px 20px -2px rgba(0, 0, 0, 0.2) !important;
-}
-
 .select,
 .select option {
   color: #171717;

@@ -46,8 +46,31 @@ export default function StickyCanvas({
 
   return (
     // Sticky notes canvas
-    <div className="relative flex-1 rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
-      <div ref={containerRef} className="absolute inset-0">
+    <div className="relative flex-1">
+      <div className="md:hidden h-full overflow-y-auto rounded-2xl border border-base-300 bg-base-100 p-2">
+        {notes.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-sm text-base-content/50">
+            No sticky notes yet
+          </div>
+        ) : (
+          <div className="space-y-3 pb-2">
+            {notes.map((note) => (
+              <StickyNoteCard
+                key={note.id}
+                note={note}
+                colors={colors}
+                onChange={onUpdateNote}
+                onDelete={onDeleteNote}
+                layoutMode="list"
+                draggableEnabled={false}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="hidden md:block h-full rounded-2xl border border-base-300 bg-base-100 overflow-hidden">
+        <div ref={containerRef} className="absolute inset-0">
         <DndContext
           sensors={sensors}
           modifiers={[restrictToParentElement]}
@@ -101,6 +124,7 @@ export default function StickyCanvas({
             ) : null}
           </DragOverlay>
         </DndContext>
+        </div>
       </div>
     </div>
   );

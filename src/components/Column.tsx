@@ -224,7 +224,7 @@ export default function Column({
   return (
     // Column layout
     <motion.div
-      className={`flex flex-col h-full rounded-xl p-4 w-[360px] flex-shrink-0 transition-all duration-200 ${
+      className={`flex h-full w-full flex-shrink-0 flex-col rounded-xl p-4 transition-all duration-200 ${
         isDraggedOver 
           ? "bg-primary/20 ring-3 ring-primary ring-opacity-100" 
           : "bg-base-200"
