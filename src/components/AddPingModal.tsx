@@ -235,18 +235,18 @@ export default function AddPingModal({
 
   return (
     // Modal layout
-    <AnimatePresence initial={false}>
+    <AnimatePresence>
       {isOpen && (
-        <div className="modal modal-open !transition-none !animate-none">
+        <div className="modal modal-open">
           <motion.div
-            className="modal-backdrop !transition-none !animate-none"
+            className="modal-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onMouseDown={handleBackdropMouseDown}
           />
           <motion.div
-            className="modal-box max-w-3xl !transition-none !animate-none h-[85vh] overflow-visible flex flex-col"
+            className="modal-box max-w-3xl h-[85vh] overflow-visible flex flex-col"
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}
